@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Immutable QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: var(--bg); color: var(--fg); font-family: var(--font-body); }
+    .page { max-width: 1200px; margin: 0 auto; padding: 100px 40px 40px; }
+    .page-header { margin-bottom: 40px; }
+    .page-title { font-family: var(--font-display); font-size: 2.5rem; color: var(--fg); margin-bottom: 8px; }
+    .page-sub { color: var(--fg-muted); font-size: 1rem; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 40px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .stat-label { font-size: 0.8125rem; color: var(--fg-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .stat-value { font-size: 2rem; font-weight: 600; color: var(--accent); font-family: var(--font-mono); }
+    .stat-sub { font-size: 0.8125rem; color: var(--fg-muted); margin-top: 4px; }
+    .section { margin-bottom: 40px; }
+    .section-title { font-size: 1.25rem; font-weight: 500; margin-bottom: 16px; color: var(--fg); }
+    .actions { display: flex; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 0.875rem; font-weight: 500; text-decoration: none; transition: all 0.2s; cursor: pointer; border: none; }
+    .btn-primary { background: var(--accent); color: var(--bg); }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-outline { border: 1px solid var(--border-strong); color: var(--fg-muted); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .qc-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .qc-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+    .qc-count { font-size: 1.5rem; font-weight: 600; font-family: var(--font-mono); margin-bottom: 4px; }
+    .qc-label { font-size: 0.8125rem; color: var(--fg-muted); }
+    .pending .qc-count { color: #F59E0B; }
+    .approved .qc-count { color: var(--accent); }
+    .rejected .qc-count { color: #EF4444; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">IMMUTABLE QC</a>
+      <div class="nav-links">
+        <a href="/dashboard" class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/dashboard' ? 'active' : '' %>"><span class="nav-icon">&#9632;</span>Dashboard</a>
+        <a href="/readings" class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/readings' ? 'active' : '' %>"><span class="nav-icon">&#9651;</span>Readings</a>
+        <a href="/ledger" class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/ledger' ? 'active' : '' %>"><span class="nav-icon">&#9646;</span>Ledger</a>
+        <a href="/review" class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/review' ? 'active' : '' %>"><span class="nav-icon">&#10003;</span>Review</a>
+        <a href="/submit" class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/submit' ? 'active' : '' %>"><span class="nav-icon">&#8593;</span>Submit</a>
+      </div>
+      <div class="nav-actions">
+        <%- include('partials/wallet-btn') %>
+        <a href="/submit" class="btn btn-primary">+ New</a>
+      </div>
+      <button class="nav-hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open'); this.classList.toggle('open');" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open'); document.querySelector('.nav-hamburger').classList.remove('open');" aria-label="Close menu" style="display:none;">✕</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">System Dashboard</h1>
+      <p class="page-sub">Instrument-to-ledger pipeline status</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Readings</div>
+        <div class="stat-value"><%= readings %></div>
+        <div class="stat-sub">captured &amp; signed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Ledger Blocks</div>
+        <div class="stat-value"><%= totalBlocks %></div>
+        <div class="stat-sub">latest block #<%= latestBlock %></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Readings in Chain</div>
+        <div class="stat-value"><%= totalReadings %></div>
+        <div class="stat-sub">committed to ledger</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Instruments</div>
+        <div class="stat-value"><%= instrumentCount %></div>
+        <div class="stat-sub">registered &amp; active</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Reviewers</div>
+        <div class="stat-value"><%= reviewerCount %></div>
+        <div class="stat-sub">authorized attestors</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">On-Chain Signs</div>
+        <div class="stat-value"><%= walletAttestations %></div>
+        <div class="stat-sub"><%= walletUniqueWallets %> unique wallet<%= walletUniqueWallets === '1' ? '' : 's' %></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">QC Packet Status</div>
+      <div class="qc-summary">
+        <div class="qc-item pending">
+          <div class="qc-count"><%= pendingCount %></div>
+          <div class="qc-label">Pending Review</div>
+        </div>
+        <div class="qc-item approved">
+          <div class="qc-count"><%= approvedCount %></div>
+          <div class="qc-label">Approved</div>
+        </div>
+        <div class="qc-item rejected">
+          <div class="qc-count"><%= rejectedCount %></div>
+          <div class="qc-label">Rejected</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 32px; display: flex; gap: 12px;">
+      <a href="/readings" class="btn btn-outline" data-track="dashboard-view-readings">View All Readings</a>
+      <a href="/ledger" class="btn btn-outline" data-track="dashboard-inspect-ledger">Inspect Ledger</a>
+      <a href="/review" class="btn btn-outline" data-track="dashboard-review-pending">Review Pending</a>
+    </div>
+  </div>
+  <script src="/js/analytics.js"></script>
+<script>
+  document.addEventListener('click', function(e) {
+    var nav = document.querySelector('.nav-links');
+    var hamburger = document.querySelector('.nav-hamburger');
+    if (nav && hamburger && nav.classList.contains('open')) {
+      if (!nav.contains(e.target) && !hamburger.contains(e.target)) {
+        nav.classList.remove('open');
+        hamburger.classList.remove('open');
+      }
+    }
+  });
+</script>
+</body>
+</html>

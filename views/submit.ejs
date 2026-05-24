@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submit Reading — Immutable QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: var(--bg); color: var(--fg); font-family: var(--font-body); }
+    .page { max-width: 720px; margin: 0 auto; padding: 100px 40px 40px; }
+    .page-title { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
+    .page-sub { color: var(--fg-muted); margin-bottom: 40px; }
+    .form-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
+    .form-group { margin-bottom: 24px; }
+    label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 8px; color: var(--fg); }
+    .label-hint { font-weight: 400; color: var(--fg-muted); font-size: 0.8125rem; margin-left: 8px; }
+    input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 12px 16px; border-radius: 8px; font-family: var(--font-body); font-size: 1rem; box-sizing: border-box; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    .btn { width: 100%; padding: 14px 24px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: var(--font-body); }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result { margin-top: 24px; padding: 20px; border-radius: 12px; display: none; }
+    .result.success { background: var(--accent-dim); border: 1px solid var(--border-strong); display: block; }
+    .result.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); display: block; }
+    .result-title { font-size: 0.875rem; font-weight: 600; margin-bottom: 12px; font-family: var(--font-mono); }
+    .result-row { display: flex; justify-content: space-between; font-size: 0.875rem; padding: 4px 0; border-bottom: 1px solid var(--border); }
+    .result-row:last-child { border-bottom: none; }
+    .result-label { color: var(--fg-muted); }
+    .result-value { font-family: var(--font-mono); color: var(--fg); font-size: 0.8125rem; text-align: right; word-break: break-all; }
+    .hint { font-size: 0.8125rem; color: var(--fg-muted); margin-top: 6px; }
+    .simulator-hint { background: var(--accent-dim); border: 1px solid var(--border-strong); border-radius: 8px; padding: 16px; margin-bottom: 24px; font-size: 0.875rem; color: var(--fg-muted); }
+    .simulator-hint strong { color: var(--accent); }
+    .sensor-type-select { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+    .sensor-type-btn { padding: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .sensor-type-btn:hover { border-color: var(--border-strong); }
+    .sensor-type-btn.selected { border-color: var(--accent); background: var(--accent-dim); }
+    .sensor-type-btn input { display: none; }
+    .sensor-type-name { font-size: 1rem; font-weight: 600; color: var(--fg); display: block; }
+    .sensor-type-desc { font-size: 0.8125rem; color: var(--fg-muted); margin-top: 4px; display: block; }
+    .tab-bar { display: flex; gap: 0; margin-bottom: 32px; border-bottom: 1px solid var(--border); }
+    .tab-btn { padding: 12px 24px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--fg-muted); font-size: 0.875rem; font-weight: 500; cursor: pointer; font-family: var(--font-body); transition: all 0.2s; }
+    .tab-btn:hover { color: var(--fg); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .file-drop { border: 2px dashed var(--border-strong); border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg); }
+    .file-drop:hover, .file-drop.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+    .file-drop-icon { font-size: 2rem; margin-bottom: 12px; }
+    .file-drop-text { font-size: 0.875rem; color: var(--fg-muted); }
+    .file-drop-text strong { color: var(--accent); }
+    .file-name { font-family: var(--font-mono); font-size: 0.875rem; color: var(--fg); margin-top: 12px; }
+    .format-badges { display: flex; gap: 8px; margin-top: 16px; justify-content: center; }
+    .format-badge { font-size: 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; color: var(--fg-muted); font-family: var(--font-mono); }
+    .peak-preview { margin-top: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: none; }
+    .peak-preview-header { padding: 12px 16px; background: var(--accent-dim); font-size: 0.8125rem; font-weight: 600; border-bottom: 1px solid var(--border); color: var(--fg-muted); font-family: var(--font-mono); }
+    .peak-preview-body { padding: 16px; }
+    .peak-count { font-family: var(--font-mono); color: var(--accent); font-size: 1.25rem; }
+  </style>
+  <style>
+    .faucet-banner { display:none; background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.4); border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.875rem; color: var(--fg-muted); }
+    .faucet-banner.visible { display: flex; align-items: center; gap: 10px; }
+    .faucet-banner .faucet-msg { flex: 1; }
+    .faucet-banner .faucet-msg strong { color: #EAB308; }
+    .btn-faucet { padding: 8px 16px; background: #EAB308; color: #000; border: none; border-radius: 6px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: var(--font-body); }
+    .btn-faucet:hover { opacity: 0.85; }
+    .btn-faucet:disabled { opacity: 0.5; cursor: not-allowed; }
+    .submit-wrap { position: relative; }
+    .low-balance-hint { display:none; font-size: 0.8125rem; color: #EAB308; margin-top: 8px; text-align: center; }
+    .low-balance-hint.visible { display: block; }
+    .tx-link { color: var(--accent); font-family: var(--font-mono); font-size: 0.8125rem; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">IMMUTABLE QC</a>
+      <div class="nav-links">
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+        <a href="/readings" class="nav-link">Readings</a>
+        <a href="/ledger" class="nav-link">Ledger</a>
+        <a href="/review" class="nav-link">Review</a>
+        <a href="/submit" class="nav-link active">Submit</a>
+      </div>
+      <div class="nav-actions">
+        <%- include('partials/wallet-btn') %>
+      </div>
+      <button class="nav-hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open'); this.classList.toggle('open');" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open'); document.querySelector('.nav-hamburger').classList.remove('open');" aria-label="Close menu">✕</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <h1 class="page-title">Submit Reading</h1>
+    <p class="page-sub">Capture and cryptographically sign instrument measurements</p>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('manual')">Manual Entry</button>
+      <button class="tab-btn" onclick="switchTab('hplc')">Upload HPLC CSV</button>
+    </div>
+
+    <!-- ===== MANUAL ENTRY TAB ===== -->
+    <div class="tab-panel active" id="tab-manual">
+      <div class="simulator-hint">
+        <strong>Demo Mode:</strong> This form simulates an instrument submitting a reading.
+        In production, instruments call <code>POST /api/readings</code> directly.
+      </div>
+
+      <div class="form-card">
+        <form id="readingForm">
+          <div class="form-group">
+            <label>Sensor Type</label>
+            <div class="sensor-type-select">
+              <label class="sensor-type-btn selected" id="phBtn">
+                <input type="radio" name="sensorType" value="ph" checked>
+                <span class="sensor-type-name">pH Meter</span>
+                <span class="sensor-type-desc">Laboratory probe</span>
+              </label>
+              <label class="sensor-type-btn" id="tempBtn">
+                <input type="radio" name="sensorType" value="temperature">
+                <span class="sensor-type-name">Temperature</span>
+                <span class="sensor-type-desc">RTD / thermocouple</span>
+              </label>
+              <label class="sensor-type-btn" id="hplcBtn">
+                <input type="radio" name="sensorType" value="hplc">
+                <span class="sensor-type-name">HPLC</span>
+                <span class="sensor-type-desc">Chromatograph</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="value">Measurement Value <span class="label-hint" id="unitHint">pH unit (0–14)</span></label>
+            <input type="number" id="value" name="value" step="0.001" min="0" max="1000" placeholder="e.g. 7.045" required>
+          </div>
+
+          <div class="form-group">
+            <label for="instrumentSerial">Instrument Serial</label>
+            <select id="instrumentSerial" name="instrumentSerial" required>
+              <option value="">Select instrument…</option>
+              <option value="PH-2026-001">PH-2026-001 — pH Meter Alpha-1 (Lab A)</option>
+              <option value="TEMP-2026-077">TEMP-2026-077 — Temperature Probe T-77 (Lab B)</option>
+            </select>
+            <div class="hint">HPLC instruments are auto-registered on upload</div>
+          </div>
+
+          <div class="form-group">
+            <label for="capturedAt">Captured At <span class="label-hint">(leave blank for now)</span></label>
+            <input type="datetime-local" id="capturedAt" name="capturedAt">
+          </div>
+
+          <div class="submit-wrap">
+            <button type="submit" class="btn" id="submitBtn" data-track="manual-submit-reading">Sign &amp; Submit to Ledger</button>
+            <div class="faucet-banner" id="faucetBanner">
+              <div class="faucet-msg">
+                <strong>Low IQC balance</strong> — Request free test tokens to cover gas fees
+              </div>
+              <button class="btn-faucet" id="faucetBtn" onclick="handleFaucetRequest(event)">Request Test Tokens</button>
+            </div>
+            <div class="low-balance-hint" id="lowBalanceHint">Low IQC balance — <a href="#" onclick="handleFaucetRequest(event); return false;" style="color:var(--accent);">request test tokens</a></div>
+          </div>
+        </form>
+
+        <div class="result" id="result"></div>
+      </div>
+    </div>
+
+    <!-- ===== HPLC CSV UPLOAD TAB ===== -->
+    <div class="tab-panel" id="tab-hplc">
+      <div class="simulator-hint">
+        <strong>HPLC CSV Import:</strong> Upload a Waters Empower or Agilent OpenLAB CSV export.
+        Each peak row becomes a signed reading with its own QC packet.
+      </div>
+
+      <div class="form-card">
+        <form id="hplcForm">
+          <div class="form-group">
+            <label>CSV File</label>
+            <div class="file-drop" id="fileDrop" onclick="document.getElementById('csvFile').click()">
+              <div class="file-drop-icon">📊</div>
+              <div class="file-drop-text">Drop CSV here or <strong>browse</strong></div>
+              <div class="file-name" id="fileName"></div>
+              <div class="format-badges">
+                <span class="format-badge">Waters Empower</span>
+                <span class="format-badge">Agilent OpenLAB</span>
+              </div>
+            </div>
+            <input type="file" id="csvFile" name="csv" accept=".csv" style="display:none" required>
+            <div class="hint">Max 5 MB. Only Waters Empower and Agilent OpenLAB CSV exports supported.</div>
+          </div>
+
+          <div class="form-group">
+            <label for="hplcSerial">Instrument Serial <span class="label-hint">(auto-registered if blank)</span></label>
+            <input type="text" id="hplcSerial" name="instrumentSerial" placeholder="e.g. HPLC-2026-001">
+          </div>
+
+          <div class="form-group">
+            <label for="batchId">Batch / Lot ID <span class="label-hint">(optional)</span></label>
+            <input type="text" id="batchId" name="batchId" placeholder="e.g. LOT-2026-042">
+          </div>
+
+          <div class="form-group">
+            <label for="injectionTime">Injection Time <span class="label-hint">(ISO 8601)</span></label>
+            <input type="datetime-local" id="injectionTime" name="injectionTime">
+            <div class="hint">Defaults to current time if not provided. All peaks share this timestamp.</div>
+          </div>
+
+          <div class="peak-preview" id="peakPreview">
+            <div class="peak-preview-header">Peak preview</div>
+            <div class="peak-preview-body" id="peakPreviewBody"></div>
+          </div>
+
+          <button type="submit" class="btn" id="hplcSubmitBtn" disabled data-track="hplc-upload-submit">Parse &amp; Ingest CSV</button>
+        </form>
+
+        <div class="result" id="hplcResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/analytics.js"></script>
+  <script>
+    // Tab switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Sensor type toggle
+    document.querySelectorAll('.sensor-type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sensor-type-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        const type = btn.querySelector('input').value;
+        const unitHint = document.getElementById('unitHint');
+        const valueInput = document.getElementById('value');
+        if (type === 'ph') {
+          unitHint.textContent = 'pH unit (0–14)';
+          valueInput.max = '14'; valueInput.placeholder = 'e.g. 7.045';
+        } else if (type === 'temperature') {
+          unitHint.textContent = '°C';
+          valueInput.max = '300'; valueInput.placeholder = 'e.g. 23.456';
+        } else {
+          unitHint.textContent = 'peak area (counts)';
+          valueInput.max = '999999999'; valueInput.placeholder = 'e.g. 1547832';
+        }
+      });
+    });
+
+    // Manual form submission
+    document.getElementById('readingForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const result = document.getElementById('result');
+      btn.disabled = true;
+      result.className = 'result';
+      result.style.display = 'none';
+
+      // Step 1: Ensure wallet is connected before submitting
+      const state = IQC_WALLET.getState();
+      if (!state.connected) {
+        if (!IQC_WALLET.isWalletAvailable()) {
+          alert('No wallet detected. Please install MetaMask or an EVM wallet browser extension.');
+          btn.disabled = false;
+          return;
+        }
+        btn.textContent = 'Connecting wallet…';
+        try {
+          await IQC_WALLET.connect();
+        } catch (err) {
+          btn.textContent = 'Sign & Submit to Ledger';
+          btn.disabled = false;
+          result.className = 'result error';
+          result.innerHTML = `<div class="result-title">✗ Wallet connection failed</div><div style="font-size:0.875rem;color:#EF4444;">${err.message}</div>`;
+          return;
+        }
+      }
+
+      // Step 2: Check IQC balance (show faucet if needed)
+      btn.textContent = 'Signing…';
+      const newState = IQC_WALLET.getState();
+      if (newState.isIqcChain) {
+        const balance = await IQC_WALLET.getIqcBalance();
+        const balanceNum = parseFloat(balance) || 0;
+        const banner = document.getElementById('faucetBanner');
+        const hint = document.getElementById('lowBalanceHint');
+        if (balanceNum < 0.001) {
+          banner.classList.add('visible');
+          hint.classList.add('visible');
+        } else {
+          banner.classList.remove('visible');
+          hint.classList.remove('visible');
+        }
+      }
+
+      try {
+        const fd = new FormData(e.target);
+        const payload = {
+          sensorType: fd.get('sensorType'),
+          value: parseFloat(fd.get('value')),
+          unit: fd.get('sensorType') === 'ph' ? 'pH' : fd.get('sensorType') === 'temperature' ? '°C' : 'counts',
+          instrumentSerial: fd.get('instrumentSerial'),
+          capturedAt: fd.get('capturedAt') || new Date().toISOString(),
+        };
+
+        const res = await fetch('/api/readings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Submission failed');
+
+        // Step 3: Trigger on-chain attestation via MetaMask (if wallet connected)
+        const stateAfter = IQC_WALLET.getState();
+        let attestationHtml = '';
+        if (stateAfter.connected && stateAfter.isIqcChain) {
+          btn.textContent = 'Signing on-chain…';
+          try {
+            const attResult = await IQC_WALLET.submitOnChainAttestation(data.qcPacket.id, data.reading.reading_hash);
+            const explorerUrl = `https://sepolia.basescan.org/tx/${attResult.attestation.tx_hash}`;
+            attestationHtml = `
+              <div class="result-row"><span class="result-label">On-Chain TX</span><span class="result-value"><a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--accent);">${attResult.attestation.tx_hash.substring(0, 20)}… ↗</a></span></div>
+              <div class="result-row"><span class="result-label">Attestor</span><span class="result-value">${IQC_WALLET.shortAddress(attResult.attestation.wallet_address)}</span></div>`;
+          } catch (attErr) {
+            console.warn('[submit] On-chain attestation failed:', attErr.message);
+            attestationHtml = `<div class="result-row"><span class="result-label">On-Chain</span><span class="result-value" style="color:#F59E0B;">⚠ Signed locally — on-chain failed: ${attErr.message}</span></div>`;
+          }
+        }
+
+        result.className = 'result success';
+        result.innerHTML = `
+          <div class="result-title">✓ Reading committed to ledger</div>
+          <div class="result-row"><span class="result-label">Block</span><span class="result-value">#${data.reading.block_number}</span></div>
+          <div class="result-row"><span class="result-label">Reading Hash</span><span class="result-value">${data.reading.reading_hash.substring(0, 20)}…</span></div>
+          <div class="result-row"><span class="result-label">ECDSA Signature</span><span class="result-value">${data.verification.signature.substring(0, 32)}…</span></div>
+          <div class="result-row"><span class="result-label">QC Packet</span><span class="result-value">#${data.qcPacket.id} · ${data.qcPacket.status}</span></div>
+          ${attestationHtml}
+          <div style="margin-top:16px;text-align:center;">
+            <a href="/readings" style="color:var(--accent);font-size:0.875rem;">View all readings →</a>
+          </div>`;
+      } catch (err) {
+        result.className = 'result error';
+        result.innerHTML = `<div class="result-title">✗ Error</div><div style="font-size:0.875rem;color:#EF4444;">${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign & Submit to Ledger';
+      }
+    });
+
+    // HPLC file selection & drag-drop
+    const csvFile = document.getElementById('csvFile');
+    const fileDrop = document.getElementById('fileDrop');
+    const fileName = document.getElementById('fileName');
+    const hplcSubmitBtn = document.getElementById('hplcSubmitBtn');
+    const peakPreview = document.getElementById('peakPreview');
+    const peakPreviewBody = document.getElementById('peakPreviewBody');
+
+    csvFile.addEventListener('change', () => {
+      if (csvFile.files.length > 0) {
+        fileName.textContent = csvFile.files[0].name;
+        hplcSubmitBtn.disabled = false;
+        hplcSubmitBtn.textContent = 'Parse & Ingest CSV';
+        // Quick preview: show file size
+        peakPreview.style.display = 'block';
+        peakPreviewBody.innerHTML = `<span class="peak-count">${csvFile.files[0].name}</span> — ${(csvFile.files[0].size / 1024).toFixed(1)} KB ready to parse`;
+      }
+    });
+
+    // Drag-drop visual
+    fileDrop.addEventListener('dragover', (e) => { e.preventDefault(); fileDrop.classList.add('drag-over'); });
+    fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('drag-over'));
+    fileDrop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileDrop.classList.remove('drag-over');
+      csvFile.files = e.dataTransfer.files;
+      if (csvFile.files.length > 0) {
+        fileName.textContent = csvFile.files[0].name;
+        hplcSubmitBtn.disabled = false;
+        hplcSubmitBtn.textContent = 'Parse & Ingest CSV';
+        peakPreview.style.display = 'block';
+        peakPreviewBody.innerHTML = `<span class="peak-count">${csvFile.files[0].name}</span> — ${(csvFile.files[0].size / 1024).toFixed(1)} KB ready to parse`;
+      }
+    });
+
+    // HPLC form submission — reads file as base64, sends as JSON
+    document.getElementById('hplcForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('hplcSubmitBtn');
+      const result = document.getElementById('hplcResult');
+      btn.disabled = true;
+      btn.textContent = 'Parsing & signing peaks…';
+      result.className = 'result';
+      result.style.display = 'none';
+
+      try {
+        const fileInput = document.getElementById('csvFile');
+        if (!fileInput.files.length) throw new Error('No file selected');
+
+        const file = fileInput.files[0];
+        const csvBase64 = await file.text().then(t => btoa(t));
+
+        const fd = new FormData(e.target);
+        const payload = {
+          csv: csvBase64,
+          instrumentSerial: fd.get('instrumentSerial') || undefined,
+          batchId: fd.get('batchId') || undefined,
+          injectionTime: fd.get('injectionTime') ? new Date(fd.get('injectionTime')).toISOString() : undefined,
+        };
+
+        const res = await fetch('/api/hplc/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'HPLC upload failed');
+
+        result.className = 'result success';
+        const peaks = data.peaksProcessed;
+        const firstRead = data.readings[0];
+        result.innerHTML = `
+          <div class="result-title">✓ ${peaks} HPLC peak${peaks > 1 ? 's' : ''} committed to ledger</div>
+          <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrument.name}</span></div>
+          <div class="result-row"><span class="result-label">Format</span><span class="result-value">${data.format}</span></div>
+          <div class="result-row"><span class="result-label">Peaks Processed</span><span class="result-value">${peaks}</span></div>
+          <div class="result-row"><span class="result-label">Blocks</span><span class="result-value">#${firstRead.reading.block_number}–${data.readings[data.readings.length-1].reading.block_number}</span></div>
+          <div class="result-row"><span class="result-label">QC Packets</span><span class="result-value">${peaks} pending review</span></div>
+          <div style="margin-top:16px;text-align:center;">
+            <a href="/readings?sensor_type=hplc" style="color:var(--accent);font-size:0.875rem;">View HPLC readings →</a>
+          </div>`;
+      } catch (err) {
+        result.className = 'result error';
+        result.innerHTML = `<div class="result-title">✗ Error</div><div style="font-size:0.875rem;color:#EF4444;">${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Parse & Ingest CSV';
+      }
+    });
+
+    // Faucet request handler
+    async function handleFaucetRequest(e) {
+      e.preventDefault();
+      const faucetBtn = document.getElementById('faucetBtn');
+      faucetBtn.disabled = true;
+      faucetBtn.textContent = 'Sending…';
+      try {
+        const result = await IQC_WALLET.requestFaucetTokens();
+        faucetBtn.textContent = 'Sent!';
+        faucetBtn.style.background = '#16a34a';
+        faucetBtn.style.color = '#fff';
+        // Hide banner after success
+        document.getElementById('faucetBanner').classList.remove('visible');
+        document.getElementById('lowBalanceHint').classList.remove('visible');
+        // Show explorer link briefly
+        const link = document.createElement('a');
+        link.href = result.explorerUrl;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'tx-link';
+        link.style.display = 'block';
+        link.style.marginTop = '8px';
+        link.textContent = '✓ Test tokens sent — view on Basescan →';
+        faucetBtn.parentNode.appendChild(link);
+        // Refresh balance in wallet modal if open
+        const modal = document.getElementById('walletModal');
+        if (modal && modal.classList.contains('visible')) {
+          const bal = await IQC_WALLET.getIqcBalance();
+          document.getElementById('iqcBalance').textContent = bal + ' IQC';
+        }
+      } catch (err) {
+        faucetBtn.textContent = 'Retry';
+        faucetBtn.disabled = false;
+        alert('Faucet error: ' + err.message);
+      }
+    }
+
+    // Check IQC balance on page load if wallet is already connected
+    (async function() {
+      const state = IQC_WALLET.getState();
+      if (state.connected && state.isIqcChain) {
+        const balance = await IQC_WALLET.getIqcBalance();
+        const balanceNum = parseFloat(balance) || 0;
+        if (balanceNum < 0.001) {
+          document.getElementById('faucetBanner').classList.add('visible');
+          document.getElementById('lowBalanceHint').classList.add('visible');
+        }
+      }
+    })();
+  </script>
+<script>
+  document.addEventListener('click', function(e) {
+    var nav = document.querySelector('.nav-links');
+    var hamburger = document.querySelector('.nav-hamburger');
+    if (nav && hamburger && nav.classList.contains('open')) {
+      if (!nav.contains(e.target) && !hamburger.contains(e.target)) {
+        nav.classList.remove('open');
+        hamburger.classList.remove('open');
+      }
+    }
+  });
+</script>
+</body>
+</html>

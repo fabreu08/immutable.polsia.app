@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ledger — Immutable QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: var(--bg); color: var(--fg); font-family: var(--font-body); }
+    .page { max-width: 1200px; margin: 0 auto; padding: 100px 40px 40px; }
+    .page-title { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
+    .page-sub { color: var(--fg-muted); margin-bottom: 32px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .stat-label { font-size: 0.75rem; color: var(--fg-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .stat-value { font-size: 1.5rem; font-weight: 600; color: var(--accent); font-family: var(--font-mono); }
+    .chain { display: flex; flex-direction: column; gap: 8px; }
+    .block { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; display: grid; grid-template-columns: 80px 1fr 1fr 100px; align-items: center; gap: 16px; }
+    .block-genesis { border-color: var(--border-strong); }
+    .block-num { font-family: var(--font-mono); font-size: 1.25rem; color: var(--accent); font-weight: 500; }
+    .block-info { display: flex; flex-direction: column; gap: 2px; }
+    .block-hash { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-muted); }
+    .block-hash span { color: var(--fg); }
+    .block-meta { font-size: 0.8125rem; color: var(--fg-muted); text-align: right; }
+    .chain-connector { width: 2px; height: 16px; background: var(--border-strong); margin-left: 42px; }
+    .mono { font-family: var(--font-mono); }
+    .accent { color: var(--accent); }
+    .muted { color: var(--fg-muted); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-family: var(--font-mono); }
+    .badge-0 { background: var(--accent-dim); color: var(--accent); }
+    .section-label { font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--fg-muted); margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .on-chain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .on-chain-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .on-chain-card .stat-label { font-size: 0.75rem; color: var(--fg-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .on-chain-card .stat-value { font-size: 1.25rem; font-weight: 600; color: var(--accent); font-family: var(--font-mono); }
+    .attestation-list { display: flex; flex-direction: column; gap: 8px; }
+    .attestation-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: start; }
+    .attestation-item:hover { border-color: var(--accent-dim); }
+    .attestation-hash { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-muted); }
+    .attestation-hash span { color: var(--fg); word-break: break-all; }
+    .attestation-meta { display: flex; flex-direction: column; gap: 3px; }
+    .attestation-meta-item { font-size: 0.75rem; color: var(--fg-muted); }
+    .attestation-meta-item strong { color: var(--fg); }
+    .attestation-link { font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent); text-decoration: none; padding: 4px 8px; border: 1px solid var(--accent-dim); border-radius: 4px; white-space: nowrap; }
+    .attestation-link:hover { background: var(--accent-dim); }
+    .contract-ref { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-muted); margin-top: 8px; }
+    .contract-ref a { color: var(--accent); text-decoration: none; }
+    .empty-onchain { background: var(--bg-card); border: 1px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; color: var(--fg-muted); }
+    .empty-onchain-title { font-size: 1rem; font-weight: 500; color: var(--fg); margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">IMMUTABLE QC</a>
+      <div class="nav-links">
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+        <a href="/readings" class="nav-link">Readings</a>
+        <a href="/ledger" class="nav-link active">Ledger</a>
+        <a href="/review" class="nav-link">Review</a>
+        <a href="/submit" class="nav-link">Submit</a>
+      </div>
+      <div class="nav-actions">
+        <%- include('partials/wallet-btn') %>
+      </div>
+      <button class="nav-hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open'); this.classList.toggle('open');" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open'); document.querySelector('.nav-hamburger').classList.remove('open');" aria-label="Close menu">✕</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <h1 class="page-title">Immutable Ledger</h1>
+    <p class="page-sub">Hash-chain blockchain. Each block commits readings cryptographically.</p>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Blocks</div>
+        <div class="stat-value"><%= stats.c %></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Readings Committed</div>
+        <div class="stat-value"><%= stats.tr %></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Latest Block</div>
+        <div class="stat-value">#<%= stats.lb %></div>
+      </div>
+    </div>
+
+    <% if (chain.length === 0) { %>
+      <div style="text-align:center;padding:60px;color:var(--fg-muted);">
+        <p>No blocks yet. The genesis block is created when the first reading is submitted.</p>
+      </div>
+    <% } else { %>
+      <div class="chain">
+        <% for (let i = 0; i < chain.length; i++) { %>
+          <% const b = chain[i]; %>
+          <div class="block <%= b.block_number === 0 ? 'block-genesis' : '' %>">
+            <div class="block-num">
+              <% if (b.block_number === 0) { %>
+                <span class="badge badge-0">GENESIS</span>
+              <% } else { %>
+                #<%= b.block_number %>
+              <% } %>
+            </div>
+            <div class="block-info">
+              <div class="block-hash">Block Hash: <span><%= b.block_hash.substring(0, 24) %>…</span></div>
+              <div class="block-hash">Prev Hash: <span><%= b.previous_hash.substring(0, 24) %>…</span></div>
+              <div class="block-hash">Merkle: <span><%= b.merkle_root.substring(0, 24) %>…</span></div>
+            </div>
+            <div class="block-meta">
+              <div style="color:var(--fg);"><%= b.reading_count %> readings</div>
+              <div class="muted"><%= new Date(b.block_timestamp).toLocaleString() %></div>
+            </div>
+          </div>
+          <% if (i < chain.length - 1) { %><div class="chain-connector"></div><% } %>
+        <% } %>
+      </div>
+    <% } %>
+
+    <!-- ── On-Chain Attestations ── -->
+    <div class="section-label">On-Chain Attestations</div>
+    <p style="color:var(--fg-muted);font-size:0.875rem;margin-bottom:20px;">
+      Attestations committed to the IQC token contract on <strong style="color:var(--accent);">Base Sepolia</strong>.
+    </p>
+    <div class="on-chain-grid">
+      <div class="on-chain-card">
+        <div class="stat-label">Attestations on Chain</div>
+        <div class="stat-value"><%= onChainStats.count %></div>
+      </div>
+      <div class="on-chain-card">
+        <div class="stat-label">IQC Contract</div>
+        <div class="stat-value" style="font-size:0.8rem;">
+          <a href="<%= onChainStats.explorerBase %>/token/<%= onChainStats.contract %>#transactions" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-family:var(--font-mono);">
+            <%= onChainStats.contract.substring(0, 10) %>…<span style="font-size:0.85em;margin-left:4px;">↗</span>
+          </a>
+        </div>
+      </div>
+      <div class="on-chain-card">
+        <div class="stat-label">Network</div>
+        <div class="stat-value">Base Sepolia</div>
+      </div>
+    </div>
+
+    <% if (onChainAttestations && onChainAttestations.length > 0) { %>
+      <div class="attestation-list">
+        <% onChainAttestations.forEach(function(a) { %>
+          <div class="attestation-item">
+            <div class="attestation-hash">
+              Data Hash: <span><%= a.dataHash ? a.dataHash.substring(0, 32) + '…' : 'N/A' %></span>
+            </div>
+            <div class="attestation-meta">
+              <div class="attestation-meta-item">Attestor: <strong><%= a.attestor ? a.attestor.substring(0, 10) + '…' + a.attestor.substring(a.attestor.length - 6) : 'N/A' %></strong></div>
+              <div class="attestation-meta-item">Block: <strong>#<%= a.blockNumber %></strong></div>
+              <div class="attestation-meta-item">TX: <strong><%= a.txHash ? a.txHash.substring(0, 12) + '…' : 'N/A' %></strong></div>
+              <% if (a.blockTimestamp) { %>
+                <div class="attestation-meta-item">Time: <strong><%= new Date(a.blockTimestamp).toLocaleString() %></strong></div>
+              <% } %>
+              <% if (a.metadata) { %>
+                <div class="attestation-meta-item">Meta: <strong style="font-family:var(--font-mono);font-size:0.7rem;"><%= a.metadata.substring(0, 60) %><%= a.metadata.length > 60 ? '…' : '' %></strong></div>
+              <% } %>
+            </div>
+            <a href="<%= a.explorerUrl %>" target="_blank" rel="noopener" class="attestation-link">↗ Basescan</a>
+          </div>
+        <% }); %>
+      </div>
+      <div class="contract-ref">
+        Contract: <a href="<%= onChainStats.explorerBase %>/address/<%= onChainStats.contract %>" target="_blank" rel="noopener"><%= onChainStats.contract %></a>
+      </div>
+    <% } else { %>
+      <div class="empty-onchain">
+        <div class="empty-onchain-title">No on-chain attestations yet</div>
+        <p>Attestations will appear here once they are committed to the IQC token contract on Base Sepolia.<br>
+        The contract supports <code>AttestationCreated</code> events for QC packet attestations.</p>
+      </div>
+    <% } %>
+  </div>
+</div>
+<script>
+  document.addEventListener('click', function(e) {
+    var nav = document.querySelector('.nav-links');
+    var hamburger = document.querySelector('.nav-hamburger');
+    if (nav && hamburger && nav.classList.contains('open')) {
+      if (!nav.contains(e.target) && !hamburger.contains(e.target)) {
+        nav.classList.remove('open');
+        hamburger.classList.remove('open');
+      }
+    }
+  });
+</script>
+</body>
+</html>

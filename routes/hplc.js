@@ -1,0 +1,154 @@
+/**
+ * routes/hplc.js — HPLC CSV upload endpoints.
+ * POST /api/hplc/upload   — Parse and ingest HPLC CSV, create readings + QC packets
+ * GET  /api/hplc/formats   — List supported formats
+ *
+ * Accepts CSV as base64-encoded string in JSON body (no multer needed).
+ * Client sends: { csv: "base64-encoded CSV", instrumentSerial?, batchId?, injectionTime? }
+ */
+const express = require('express');
+const router = express.Router();
+
+const { parseHplcCsv } = require('../services/hplc-parser');
+const dbReadings = require('../db/readings');
+const dbInstruments = require('../db/instruments');
+const dbLedger = require('../db/ledger');
+const ledgerService = require('../services/ledger');
+const qcPacketService = require('../services/qc-packet');
+const cryptoService = require('../services/crypto');
+
+const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
+
+// GET /api/hplc/formats — supported HPLC CSV formats
+router.get('/formats', (_req, res) => {
+  res.json({
+    supported: ['waters_empower', 'agilent_openlab'],
+    fields: ['retentionTime (min)', 'peakArea (counts or pA*s)', 'resolution', 'tailingFactor', 'height', 'amount', 'name'],
+    note: 'POST CSV as base64: { csv: "<base64>", instrumentSerial?, batchId?, injectionTime? }',
+  });
+});
+
+// POST /api/hplc/upload — parse and ingest HPLC CSV
+router.post('/upload', async (req, res) => {
+  try {
+    const { csv, instrumentId, instrumentSerial, batchId, injectionTime } = req.body;
+
+    if (!csv || typeof csv !== 'string') {
+      return res.status(400).json({
+        error: 'csv field required — pass base64-encoded CSV content as { csv: "<base64>" }',
+        example: { csv: 'base64 string here', instrumentSerial: 'HPLC-2026-001', batchId: 'LOT-42' },
+      });
+    }
+
+    // Decode base64 CSV content
+    let csvBuffer;
+    try {
+      csvBuffer = Buffer.from(csv, 'base64');
+    } catch {
+      return res.status(400).json({ error: 'csv field must be valid base64-encoded text.' });
+    }
+
+    // Resolve or auto-register instrument
+    let instrument;
+    if (instrumentId) {
+      instrument = await dbInstruments.getInstrumentById(parseInt(instrumentId));
+    } else if (instrumentSerial) {
+      instrument = await dbInstruments.getInstrumentBySerial(instrumentSerial);
+    }
+
+    if (!instrument) {
+      const serial = instrumentSerial || `HPLC-${Date.now()}`;
+      const { fingerprint } = cryptoService.getSigningKey();
+      instrument = await dbInstruments.createInstrument({
+        name: `HPLC Instrument (${serial})`,
+        sensorType: 'hplc',
+        serialNumber: serial,
+        keyFingerprint: fingerprint,
+        location: null,
+      });
+    }
+
+    // Parse CSV — detect Waters or Agilent format from header
+    let parsed;
+    try {
+      parsed = parseHplcCsv(csvBuffer);
+    } catch (err) {
+      return res.status(422).json({ error: `CSV parse error: ${err.message}` });
+    }
+
+    if (!parsed.peaks || parsed.peaks.length === 0) {
+      return res.status(422).json({
+        error: 'CSV parsed but no valid peaks found. Ensure the CSV has Retention Time and Area columns with numeric data.',
+      });
+    }
+
+    // Chain state for consecutive block numbering across peak batch
+    const latestEntry = await dbLedger.getLatestLedgerEntry();
+    await ledgerService.getOrCreateGenesisBlock();
+    const previousHash = latestEntry ? latestEntry.block_hash : GENESIS_HASH;
+    const startBlock = latestEntry ? latestEntry.block_number + 1 : 1;
+    const { privateKey, fingerprint } = cryptoService.getSigningKey();
+    const capturedAt = injectionTime || new Date().toISOString();
+
+    // Create signed reading + QC packet for each peak row
+    const results = [];
+    for (let i = 0; i < parsed.peaks.length; i++) {
+      const peak = parsed.peaks[i];
+
+      const readingObj = {
+        instrumentId: instrument.id,
+        sensorType: 'hplc',
+        value: peak.peakArea,
+        unit: 'counts',
+        capturedAt,
+      };
+
+      const readingHash = cryptoService.hashReading(readingObj);
+      const signature = cryptoService.signHash(readingHash, privateKey);
+      const blockNum = startBlock + i;
+
+      const chainHash = cryptoService.chainHash(previousHash, readingHash, blockNum);
+
+      const reading = await dbReadings.createReadingWithMetadata({
+        instrumentId: instrument.id,
+        sensorType: 'hplc',
+        value: peak.peakArea,
+        unit: 'counts',
+        capturedAt,
+        signature,
+        signingKeyFingerprint: fingerprint,
+        previousHash: chainHash,
+        blockNumber: blockNum,
+        readingHash,
+        measurementMetadata: JSON.stringify({
+          format: parsed.format,
+          retentionTime: peak.retentionTime,
+          resolution: peak.resolution,
+          tailingFactor: peak.tailingFactor,
+          height: peak.height,
+          amount: peak.amount,
+          name: peak.name,
+          batchId: batchId || null,
+          peakIndex: i + 1,
+          totalPeaks: parsed.peaks.length,
+        }),
+      });
+
+      const qcPacket = await qcPacketService.createPacketForReading(reading.id, instrument.id);
+      results.push({ reading, qcPacket, peak });
+    }
+
+    res.status(201).json({
+      instrument: { id: instrument.id, name: instrument.name, serialNumber: instrument.serial_number },
+      format: parsed.format,
+      peaksProcessed: parsed.peaks.length,
+      readings: results,
+      note: `${parsed.peaks.length} HPLC peaks ingested, signed, and assigned QC packets`,
+    });
+  } catch (err) {
+    console.error('POST /api/hplc/upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;

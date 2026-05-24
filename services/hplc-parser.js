@@ -1,0 +1,229 @@
+/**
+ * services/hplc-parser.js — HPLC CSV parser.
+ * Parses Waters Empower and Agilent OpenLAB CSV exports into standardized HPLC result objects.
+ * Handles the two dominant pharma QC CSV formats.
+ */
+
+/**
+ * Parse an HPLC CSV file buffer.
+ * Returns { format, peaks: [{ retentionTime, peakArea, resolution, tailingFactor, height, amount, name }] }
+ * Supports Waters Empower and Agilent OpenLAB formats.
+ */
+function parseHplcCsv(buffer) {
+  const raw = buffer.toString('utf8').trim();
+  const lines = raw.split(/\r?\n/);
+
+  if (lines.length < 3) {
+    throw new Error('CSV has fewer than 3 lines — not a valid HPLC export');
+  }
+
+  const format = detectFormat(lines[0], lines[1]);
+
+  if (format === 'waters') {
+    return parseWatersEmpower(lines);
+  } else if (format === 'agilent') {
+    return parseAgilentOpenLAB(lines);
+  } else {
+    throw new Error(
+      'Unrecognized CSV format. Expected Waters Empower or Agilent OpenLAB export.\n' +
+      'Header row found: ' + lines[0].substring(0, 120)
+    );
+  }
+}
+
+/**
+ * Detect format from the first two rows.
+ * Waters: "Retention Time" (full phrase) OR "Peak Name" + "Area" columns
+ * Agilent: "Ret. Time" (abbreviated) — the period and shortened form are signature
+ */
+function detectFormat(header, secondRow) {
+  const h = header.toLowerCase();
+
+  // Waters Empower: "Retention Time" as a phrase OR peak-related columns together
+  if (
+    /\bretention time\b/i.test(h) ||
+    (h.includes('peak') && h.includes('retention') && h.includes('area'))
+  ) {
+    return 'waters';
+  }
+
+  // Agilent OpenLAB: "Ret. Time" (abbreviated with period)
+  if (
+    /\bret\b.*\btime\b/i.test(h) ||
+    (h.includes('samplename') && h.includes('area'))
+  ) {
+    return 'agilent';
+  }
+
+  // Date-based fallback (some Agilent exports start with a date row)
+  if (/^[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4}/.test(secondRow)) {
+    return 'agilent';
+  }
+
+  return null;
+}
+
+/**
+ * Parse Waters Empower export.
+ * Header row contains "Retention Time" and "Area" columns. Data rows follow.
+ */
+function parseWatersEmpower(lines) {
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].toLowerCase();
+    if (l.includes('retention') && l.includes('area')) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) {
+    throw new Error('Could not find retention time / area header row in Waters Empower CSV');
+  }
+
+  const headers = splitCsvLine(lines[headerIdx]).map(h => h.trim().toLowerCase());
+
+  const colMap = {
+    retentionTime: findCol(headers, ['retention time', 'ret time', 'retention']),
+    peakName:     findCol(headers, ['peak name', 'component', 'name', 'compound']),
+    peakArea:     findCol(headers, ['area', 'area (', 'peak area']),
+    resolution:   findCol(headers, ['resolution', ' res']),
+    tailingFactor:findCol(headers, ['tailing factor', 'tailing factor (tf)', 'tailing', 'asymmetric']),
+    height:       findCol(headers, ['height']),
+    amount:       findCol(headers, ['amount', 'concentration']),
+  };
+
+  if (colMap.retentionTime === -1 || colMap.peakArea === -1) {
+    throw new Error(
+      'Waters Empower CSV missing required columns. Found: ' + headers.join(', ') + '\n' +
+      'Expected: Retention Time, Area'
+    );
+  }
+
+  const peaks = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    // Skip Empower sample info / metadata rows (not data peaks)
+    const stripped = line.replace(/^"+|"+$/g, '');
+    if (/^inj[0-9]/i.test(stripped) || /^sample\tset/i.test(stripped) || /^channel\t/i.test(stripped)) continue;
+
+    const cols = splitCsvLine(line);
+    const rt = parseFloat(cols[colMap.retentionTime]);
+    const area = parseFloat(cols[colMap.peakArea]);
+
+    if (isNaN(rt) || isNaN(area)) continue;
+
+    peaks.push({
+      retentionTime: rt,
+      peakArea: area,
+      name: colMap.peakName !== -1 ? cols[colMap.peakName] : null,
+      resolution: colMap.resolution !== -1 ? parseFloat(cols[colMap.resolution]) || null : null,
+      tailingFactor: colMap.tailingFactor !== -1 ? parseFloat(cols[colMap.tailingFactor]) || null : null,
+      height: colMap.height !== -1 ? parseFloat(cols[colMap.height]) || null : null,
+      amount: colMap.amount !== -1 ? parseFloat(cols[colMap.amount]) || null : null,
+    });
+  }
+
+  return { format: 'waters_empower', peaks };
+}
+
+/**
+ * Parse Agilent OpenLAB export.
+ * Header row contains "Ret. Time" and "Area" columns.
+ */
+function parseAgilentOpenLAB(lines) {
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].toLowerCase();
+    if (l.includes('ret. time') || l.includes('ret time')) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) {
+    throw new Error('Could not find "Ret. Time" header in Agilent OpenLAB CSV');
+  }
+
+  const headers = splitCsvLine(lines[headerIdx]).map(h => h.trim().toLowerCase());
+
+  const colMap = {
+    retentionTime: findCol(headers, ['ret. time', 'ret time']),
+    peakArea:     findCol(headers, ['area', 'area (counts)', 'area (p*a*s)']),
+    peakName:     findCol(headers, ['samplename', 'name', 'compound', 'component']),
+    resolution:   findCol(headers, ['resolution', 'res', 'rs']),
+    tailingFactor:findCol(headers, ['tailing factor', 'tailing', 'tf']),
+    height:       findCol(headers, ['height', 'height (counts)']),
+    amount:       findCol(headers, ['amount']),
+  };
+
+  if (colMap.retentionTime === -1 || colMap.peakArea === -1) {
+    throw new Error(
+      'Agilent OpenLAB CSV missing required columns. Found: ' + headers.join(', ') + '\n' +
+      'Expected: Ret. Time, Area'
+    );
+  }
+
+  const peaks = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const cols = splitCsvLine(line);
+    const rt = parseFloat(cols[colMap.retentionTime]);
+    const area = parseFloat(cols[colMap.peakArea]);
+
+    if (isNaN(rt) || isNaN(area)) continue;
+
+    peaks.push({
+      retentionTime: rt,
+      peakArea: area,
+      name: colMap.peakName !== -1 ? cols[colMap.peakName] : null,
+      resolution: colMap.resolution !== -1 ? parseFloat(cols[colMap.resolution]) || null : null,
+      tailingFactor: colMap.tailingFactor !== -1 ? parseFloat(cols[colMap.tailingFactor]) || null : null,
+      height: colMap.height !== -1 ? parseFloat(cols[colMap.height]) || null : null,
+      amount: colMap.amount !== -1 ? parseFloat(cols[colMap.amount]) || null : null,
+    });
+  }
+
+  return { format: 'agilent_openlab', peaks };
+}
+
+/**
+ * Split a CSV line handling quoted fields with commas inside.
+ */
+function splitCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+/**
+ * Find the column index for a given name pattern (partial match, case-insensitive).
+ * Returns -1 if not found.
+ */
+function findCol(headers, aliases) {
+  for (const alias of aliases) {
+    const idx = headers.findIndex(h => h.includes(alias));
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+module.exports = { parseHplcCsv };

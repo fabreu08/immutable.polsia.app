@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing — Immutable QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,700;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <style>
+    .pricing-page { min-height: 100vh; padding-top: 60px; }
+    .pricing-hero {
+      text-align: center;
+      padding: 80px 40px 64px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .pricing-overline {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .pricing-headline {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 400;
+      color: var(--fg);
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .pricing-sub {
+      font-size: 1.0625rem;
+      color: var(--fg-muted);
+      line-height: 1.7;
+      font-weight: 300;
+      max-width: 600px;
+      margin: 0 auto 56px;
+    }
+    .tiers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 40px 80px;
+    }
+    .tier {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 40px 36px;
+      background: var(--bg-card);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .tier-free { border-color: var(--border-strong); }
+    .tier-badge {
+      position: absolute;
+      top: -1px;
+      right: 24px;
+      background: var(--accent);
+      color: #060D14;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 0 0 3px 3px;
+    }
+    .tier-pro-badge {
+      background: var(--fg-dim);
+      color: var(--fg);
+    }
+    .tier-name {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .tier-price {
+      font-family: var(--font-display);
+      font-size: 3rem;
+      font-weight: 400;
+      color: var(--fg);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .tier-price-label {
+      font-size: 0.875rem;
+      color: var(--fg-muted);
+      font-weight: 300;
+      margin-bottom: 32px;
+    }
+    .tier-divider {
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 28px;
+    }
+    .tier-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 36px;
+      flex: 1;
+    }
+    .tier-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.9375rem;
+      color: var(--fg-muted);
+      font-weight: 300;
+      line-height: 1.5;
+    }
+    .tier-feature-icon {
+      color: var(--accent);
+      font-size: 0.875rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .btn-full {
+      display: block;
+      text-align: center;
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      font-weight: 500;
+      padding: 14px 28px;
+      border-radius: 3px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+    }
+    .btn-tier-primary {
+      background: var(--accent);
+      color: #060D14;
+    }
+    .btn-tier-primary:hover { opacity: 0.85; }
+    .btn-tier-secondary {
+      background: transparent;
+      color: var(--fg-muted);
+      border: 1px solid var(--border-strong);
+    }
+    .btn-tier-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* CTA Section */
+    .demo-cta {
+      max-width: 640px;
+      margin: 0 auto 80px;
+      padding: 0 40px;
+    }
+    .cta-box {
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      padding: 40px 44px;
+      background: var(--bg-card);
+      text-align: center;
+    }
+    .cta-headline {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 400;
+      color: var(--fg);
+      margin-bottom: 10px;
+    }
+    .cta-sub {
+      font-size: 0.9375rem;
+      color: var(--fg-muted);
+      font-weight: 300;
+      margin-bottom: 32px;
+    }
+    .cta-form { display: flex; flex-direction: column; gap: 14px; }
+    .cta-form input {
+      width: 100%;
+      padding: 13px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      border-radius: 3px;
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .cta-form input::placeholder { color: var(--fg-dim); }
+    .cta-form input:focus { border-color: var(--accent); }
+    .cta-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .cta-submit {
+      background: var(--accent);
+      color: #060D14;
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      font-weight: 500;
+      padding: 14px;
+      border-radius: 3px;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .cta-submit:hover { opacity: 0.85; }
+    .cta-privacy {
+      font-size: 0.75rem;
+      color: var(--fg-dim);
+      margin-top: 12px;
+      font-weight: 300;
+    }
+    .cta-success {
+      display: none;
+      text-align: center;
+      padding: 24px;
+    }
+    .cta-success-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-dim);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .cta-success h3 {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      color: var(--fg);
+      margin-bottom: 8px;
+    }
+    .cta-success p { font-size: 0.875rem; color: var(--fg-muted); font-weight: 300; }
+    .cta-error {
+      color: #FF6B6B;
+      font-size: 0.8125rem;
+      display: none;
+      margin-top: -4px;
+    }
+
+    /* Compliance strip */
+    .compliance-strip {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 40px;
+      margin-bottom: 80px;
+    }
+    .compliance-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .compliance-label {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--fg-dim);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .compliance-badges {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .compliance-badge {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--fg-muted);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 2px;
+      letter-spacing: 0.06em;
+    }
+
+    /* FAQ */
+    .faq-section {
+      max-width: 700px;
+      margin: 0 auto 80px;
+      padding: 0 40px;
+    }
+    .faq-headline {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 400;
+      color: var(--fg);
+      margin-bottom: 36px;
+      text-align: center;
+    }
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+    }
+    .faq-q {
+      font-size: 1rem;
+      color: var(--fg);
+      font-weight: 500;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .faq-a {
+      font-size: 0.9375rem;
+      color: var(--fg-muted);
+      font-weight: 300;
+      line-height: 1.7;
+      display: none;
+    }
+    .faq-a.open { display: block; }
+
+    /* Background image hero */
+    .pricing-hero-bg {
+      position: relative;
+      overflow: hidden;
+    }
+    .pricing-hero-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url('https://pub-629428d185ca4960a0a73c850d32294b.r2.dev/generated-images/company_142038/5db88b3a-8235-4dc4-bde2-09e49c068f84.jpg') center/cover no-repeat;
+      opacity: 0.04;
+      pointer-events: none;
+    }
+    .pricing-hero-bg .pricing-hero { position: relative; }
+
+    @media (max-width: 640px) {
+      .tiers { grid-template-columns: 1fr; }
+      .cta-form-row { grid-template-columns: 1fr; }
+      .pricing-hero { padding: 60px 20px 40px; }
+      .tiers { padding: 0 20px 60px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" style="text-decoration:none;display:flex;align-items:center;gap:12px;">
+        <span class="nav-logo">IQC</span>
+        <span class="nav-tagline">The Lab Oracle</span>
+      </a>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+        <a href="/" style="font-size:0.875rem;color:var(--fg-muted);text-decoration:none;">Home</a>
+        <a href="/pricing" style="font-size:0.875rem;color:var(--accent);text-decoration:none;font-weight:500;">Pricing</a>
+        <a href="/dashboard" class="btn-secondary" style="padding:8px 18px;font-size:0.8125rem;">Access App</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="pricing-page">
+    <!-- HERO with background image -->
+    <div class="pricing-hero-bg">
+      <div class="pricing-hero">
+        <div class="pricing-overline">Open Alpha · Early Access</div>
+        <h1 class="pricing-headline">The price of<br>trust is transparent.</h1>
+        <p class="pricing-sub">Immutable QC is in open alpha — free for early CDMO partners. When we ship Pro, pricing will reflect the compliance value, not a placeholder.</p>
+      </div>
+    </div>
+
+    <!-- TIER CARDS -->
+    <div class="tiers">
+      <!-- Open Alpha — Free -->
+      <div class="tier tier-free">
+        <div class="tier-badge">Active</div>
+        <div class="tier-name">Open Alpha — Free</div>
+        <div class="tier-price">$0</div>
+        <div class="tier-price-label">During alpha · No credit card</div>
+        <div class="tier-divider"></div>
+        <ul class="tier-features">
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Up to 3 instruments (pH, temperature, HPLC)
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            ECDSA-signed readings with hash-chain ledger
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            QC packet review workflow
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Reviewer attestation and audit trail
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            MetaMask / EVM wallet attestations
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Lab instrument onboarding support
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            CSV upload for Waters Empower &amp; Agilent OpenLAB
+          </li>
+        </ul>
+        <a href="#demo-form" class="btn-full btn-tier-primary" data-track="pricing-alpha-access">Request Alpha Access</a>
+      </div>
+
+      <!-- Pro — Coming Soon -->
+      <div class="tier">
+        <div class="tier-badge tier-pro-badge">Coming Soon</div>
+        <div class="tier-name">Pro</div>
+        <div class="tier-price">TBD</div>
+        <div class="tier-price-label">Enterprise pricing · Launch Q3 2026</div>
+        <div class="tier-divider"></div>
+        <ul class="tier-features">
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Unlimited instruments
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Everything in Open Alpha
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Enterprise LIMS integration (LabWare, Benchling)
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Multi-site governance and audit hierarchy
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            IQC tokenomics on-chain attestation
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            API access and webhook triggers
+          </li>
+          <li class="tier-feature">
+            <span class="tier-feature-icon">✓</span>
+            Priority onboarding and SLA support
+          </li>
+        </ul>
+        <a href="#demo-form" class="btn-full btn-tier-secondary" data-track="pricing-pro-waitlist">Join Pro Waitlist</a>
+      </div>
+    </div>
+
+    <!-- COMPLIANCE STRIP -->
+    <div class="compliance-strip">
+      <div class="compliance-inner">
+        <div class="compliance-label">Built for regulated environments</div>
+        <div class="compliance-badges">
+          <span class="compliance-badge">21 CFR Part 11</span>
+          <span class="compliance-badge">GMP / GxP</span>
+          <span class="compliance-badge">ISO 17025</span>
+          <span class="compliance-badge">HIPAA Ready</span>
+          <span class="compliance-badge">EU Annex 11</span>
+          <span class="compliance-badge">NIST Traceability</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEMO CTA FORM -->
+    <div class="demo-cta" id="demo-form">
+      <div class="cta-box">
+        <h2 class="cta-headline">Get early access to Immutable QC</h2>
+        <p class="cta-sub">Tell us about your lab. We will get back to you within one business day with onboarding details.</p>
+        <form class="cta-form" id="demoForm">
+          <input type="text" name="name" placeholder="Your name" required>
+          <input type="text" name="company" placeholder="Company / CDMO name">
+          <input type="email" name="email" placeholder="Work email" required>
+          <div class="cta-error" id="ctaError"></div>
+          <button type="submit" class="cta-submit" id="ctaSubmit">Request Demo Access</button>
+        </form>
+        <div class="cta-privacy">No spam. No credit card. Your data stays with your lab.</div>
+        <div class="cta-success" id="ctaSuccess">
+          <div class="cta-success-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h3>Request received.</h3>
+          <p>We will be in touch within one business day.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ -->
+    <div class="faq-section">
+      <h2 class="faq-headline">Common questions</h2>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.nextElementSibling.classList.toggle('open')">Who is Immutable QC built for?</div>
+        <div class="faq-a">Contract development and manufacturing organizations (CDMOs), pharmaceutical labs, and analytical instrument manufacturers who need verifiable, tamper-evident data records for regulatory compliance.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.nextElementSibling.classList.toggle('open')">When does Pro pricing launch?</div>
+        <div class="faq-a">We target Q3 2026. If you join the alpha now, your feedback shapes the pricing model and you get priority migration to Pro.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.nextElementSibling.classList.toggle('open')">Is my instrument data safe?</div>
+        <div class="faq-a">All readings are signed cryptographically at the source and committed to a hash-chain ledger. The data is yours — we do not sell or share it.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.nextElementSibling.classList.toggle('open')">What instruments are supported?</div>
+        <div class="faq-a">pH meters, temperature probes, and HPLC chromatographs (Waters Empower and Agilent OpenLAB CSV formats). We are expanding to GC, UV-Vis, and scales in the next phase.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.nextElementSibling.classList.toggle('open')">Does this replace my LIMS?</div>
+        <div class="faq-a">No — Immutable QC is a data integrity layer that can sit alongside your LIMS. We integrate with LabWare and Benchling in Pro.</div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="footer-logo">IQC</span>
+          <span class="footer-tagline">The Lab Oracle</span>
+        </div>
+        <div class="footer-links">
+          <a href="/">Home</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/dashboard">Dashboard</a>
+          <a href="mailto:immutable@polsia.app">Contact</a>
+        </div>
+        <div class="footer-copy">&copy; 2026 Immutable QC. Machine-Signed Truth.</div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/analytics.js"></script>
+  <script>
+    const form = document.getElementById('demoForm');
+    const errorEl = document.getElementById('ctaError');
+    const successEl = document.getElementById('ctaSuccess');
+    const submitBtn = document.getElementById('ctaSubmit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      const data = {
+        name: form.name.value.trim(),
+        email: form.email.value.trim(),
+        company: form.company.value.trim(),
+      };
+
+      try {
+        const res = await fetch('/api/demo-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = json.error || 'Something went wrong. Please try again.';
+          errorEl.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Request Demo Access';
+          return;
+        }
+        form.style.display = 'none';
+        successEl.style.display = 'block';
+      } catch {
+        errorEl.textContent = 'Network error. Please check your connection and try again.';
+        errorEl.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Request Demo Access';
+      }
+    });
+  </script>
+</body>
+</html>

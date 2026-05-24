@@ -1,0 +1,213 @@
+<style>
+  .wallet-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 6px; font-size: 0.8125rem;
+    font-family: var(--font-mono); cursor: pointer; border: none;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .wallet-btn.disconnected {
+    background: var(--accent-dim); color: var(--accent);
+    border: 1px solid var(--border-strong);
+  }
+  .wallet-btn.disconnected:hover { background: var(--accent); color: var(--bg); }
+  .wallet-btn.connected {
+    background: rgba(0,212,170,0.08); color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  .wallet-btn.connected:hover { border-color: var(--border-strong); }
+  .wallet-btn .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    display: inline-block; animation: pulse 2s infinite;
+  }
+  .wallet-btn.no-wallet {
+    background: var(--bg-card); color: var(--fg-muted);
+    border: 1px solid var(--border); cursor: default;
+  }
+  .wallet-chain {
+    font-size: 0.6875rem; color: var(--fg-muted);
+    margin-left: 4px;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  /* Wallet modal */
+  .wallet-modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .wallet-modal-overlay.visible { display: flex; }
+  .wallet-modal {
+    background: var(--bg-card); border: 1px solid var(--border-strong);
+    border-radius: 12px; padding: 32px; max-width: 420px; width: 90%;
+  }
+  .wallet-modal h3 {
+    font-family: var(--font-display); font-size: 1.25rem;
+    margin-bottom: 8px; color: var(--fg);
+  }
+  .wallet-modal .sub { color: var(--fg-muted); font-size: 0.875rem; margin-bottom: 24px; }
+  .wallet-detail-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.875rem;
+  }
+  .wallet-detail-row:last-child { border-bottom: none; }
+  .wallet-detail-label { color: var(--fg-muted); }
+  .wallet-detail-value { font-family: var(--font-mono); color: var(--fg); font-size: 0.8125rem; }
+  .wallet-modal-actions {
+    display: flex; gap: 8px; margin-top: 24px;
+  }
+  .wallet-modal-actions button {
+    flex: 1; padding: 10px; border-radius: 6px; font-size: 0.875rem;
+    font-weight: 500; cursor: pointer; border: none; font-family: var(--font-body);
+  }
+  .wallet-modal-actions .btn-disconnect {
+    background: rgba(239,68,68,0.15); color: #EF4444;
+    border: 1px solid rgba(239,68,68,0.3);
+  }
+  .wallet-modal-actions .btn-close-modal {
+    background: var(--bg); color: var(--fg-muted);
+    border: 1px solid var(--border);
+  }
+  .iqc-token-info {
+    margin-top: 16px; padding: 12px; background: var(--accent-dim);
+    border-radius: 8px; border: 1px solid var(--border);
+  }
+  .iqc-token-info .label { font-size: 0.75rem; color: var(--fg-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+  .iqc-token-info .value { font-size: 1.25rem; font-weight: 600; color: var(--accent); font-family: var(--font-mono); }
+</style>
+
+<button class="wallet-btn no-wallet" id="walletBtn" data-connect-wallet title="Connect EVM wallet">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="18" cy="16" r="1"/></svg>
+  <span id="walletBtnLabel">No Wallet</span>
+</button>
+
+<!-- Wallet info modal -->
+<div class="wallet-modal-overlay" id="walletModal">
+  <div class="wallet-modal">
+    <h3 id="walletModalTitle">Wallet Connected</h3>
+    <p class="sub" id="walletModalSub">Your EVM wallet is linked to Immutable QC</p>
+    <div id="walletDetails"></div>
+    <div class="iqc-token-info" id="iqcTokenInfo" style="display:none;">
+      <div class="label">IQC Token Balance</div>
+      <div class="value" id="iqcBalance">—</div>
+    </div>
+    <div class="wallet-modal-actions">
+      <button class="btn-close-modal" onclick="document.getElementById('walletModal').classList.remove('visible')">Close</button>
+      <button class="btn-disconnect" id="walletDisconnectBtn">Disconnect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ethers.js v6 from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+<script src="/js/analytics.js"></script>
+<script src="/js/wallet.js"></script>
+<script>
+(function() {
+  const btn = document.getElementById('walletBtn');
+  const label = document.getElementById('walletBtnLabel');
+  const modal = document.getElementById('walletModal');
+
+  function updateBtn(state) {
+    btn.className = 'wallet-btn ' + (
+      !IQC_WALLET.isWalletAvailable() ? 'no-wallet' :
+      state.connected ? 'connected' : 'disconnected'
+    );
+
+    if (!IQC_WALLET.isWalletAvailable()) {
+      label.textContent = 'No Wallet';
+      btn.title = 'Install MetaMask or compatible EVM wallet';
+    } else if (state.connected) {
+      label.innerHTML = '<span class="dot"></span> ' +
+        IQC_WALLET.shortAddress(state.address) +
+        '<span class="wallet-chain">' + (state.chainName || '') + '</span>';
+      btn.title = 'Connected: ' + state.address;
+    } else {
+      label.textContent = 'Connect Wallet';
+      btn.title = 'Connect MetaMask or compatible EVM wallet';
+    }
+  }
+
+  async function showModal(state) {
+    if (!state.connected) return;
+    const details = document.getElementById('walletDetails');
+    details.innerHTML = [
+      '<div class="wallet-detail-row"><span class="wallet-detail-label">Address</span><span class="wallet-detail-value">' + IQC_WALLET.shortAddress(state.address) + '</span></div>',
+      '<div class="wallet-detail-row"><span class="wallet-detail-label">Full Address</span><span class="wallet-detail-value" style="font-size:0.7rem;word-break:break-all;">' + state.address + '</span></div>',
+      '<div class="wallet-detail-row"><span class="wallet-detail-label">Chain</span><span class="wallet-detail-value">' + state.chainName + ' (' + state.chainId + ')</span></div>',
+      state.isIqcChain ?
+        '<div class="wallet-detail-row"><span class="wallet-detail-label">IQC Contract</span><span class="wallet-detail-value" style="font-size:0.7rem;">' + IQC_WALLET.IQC_CONTRACT + '</span></div>' : '',
+    ].join('');
+
+    // Show IQC token balance if on Base Sepolia
+    const tokenInfo = document.getElementById('iqcTokenInfo');
+    if (state.isIqcChain) {
+      tokenInfo.style.display = 'block';
+      const balance = await IQC_WALLET.getIqcBalance();
+      document.getElementById('iqcBalance').textContent = balance !== null ? balance + ' IQC' : 'Unable to fetch';
+    } else {
+      tokenInfo.style.display = 'none';
+    }
+
+    modal.classList.add('visible');
+  }
+
+  // Tooltip for "No Wallet" state — no external navigation
+  function showInstallHint() {
+    let tooltip = document.getElementById('walletInstallHint');
+    if (!tooltip) {
+      tooltip = document.createElement('div');
+      tooltip.id = 'walletInstallHint';
+      tooltip.style.cssText = 'position:fixed;bottom:calc(100% - 48px);right:0;z-index:300;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:8px;padding:12px 16px;font-size:0.8125rem;color:var(--fg);max-width:220px;box-shadow:0 4px 16px rgba(0,0,0,0.3);font-family:var(--font-body);';
+      tooltip.innerHTML = '<strong style="display:block;margin-bottom:4px;font-family:var(--font-mono);color:var(--accent);">No Wallet Detected</strong>Install MetaMask or any EVM wallet browser extension, then refresh this page.';
+      document.body.appendChild(tooltip);
+      setTimeout(() => {
+        tooltip.remove();
+      }, 3500);
+    }
+  }
+
+  btn.addEventListener('click', async () => {
+    if (!IQC_WALLET.isWalletAvailable()) {
+      showInstallHint();
+      return;
+    }
+    const state = IQC_WALLET.getState();
+    if (state.connected) {
+      showModal(state);
+    } else {
+      try {
+        const newState = await IQC_WALLET.connect();
+        showModal(newState);
+      } catch (err) {
+        alert('Wallet connection failed: ' + err.message);
+      }
+    }
+  });
+
+  document.getElementById('walletDisconnectBtn').addEventListener('click', () => {
+    IQC_WALLET.disconnect();
+    modal.classList.remove('visible');
+  });
+
+  // Close modal on overlay click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.classList.remove('visible');
+  });
+
+  IQC_WALLET.onStateChange(updateBtn);
+
+  // Initial state
+  updateBtn(IQC_WALLET.getState());
+
+  // Auto-reconnect if previously connected (check if wallet is already authorized)
+  if (IQC_WALLET.isWalletAvailable() && window.ethereum) {
+    window.ethereum.request({ method: 'eth_accounts' }).then(accounts => {
+      if (accounts && accounts.length > 0) {
+        IQC_WALLET.connect().catch(() => {});
+      }
+    }).catch(() => {});
+  }
+})();
+</script>

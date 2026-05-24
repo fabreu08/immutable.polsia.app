@@ -1,0 +1,343 @@
+/* Immutable QC — App Pages Styles */
+
+/* =====================
+   NAV LINKS — SHARED (desktop + mobile)
+   ===================== */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fg-muted);
+  text-decoration: none;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--fg);
+  background: var(--accent-dim);
+  border-color: var(--border);
+}
+
+.nav-link.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: var(--border-strong);
+}
+
+.nav-link .nav-icon { font-size: 0.9375rem; line-height: 1; }
+
+/* =====================
+   NAV — MOBILE HAMBURGER
+   ===================== */
+@media (max-width: 768px) {
+  .nav { padding: 0 20px !important; }
+
+  .nav-inner {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 12px 0;
+    gap: 12px;
+  }
+
+  /* Hamburger button */
+  .nav-hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 44px;
+    height: 44px;
+    background: none;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 8px;
+    gap: 5px;
+    margin-left: auto;
+    transition: border-color 0.2s;
+  }
+  .nav-hamburger:hover { border-color: var(--accent); }
+  .nav-hamburger span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--fg-muted);
+    border-radius: 2px;
+    transition: all 0.3s;
+  }
+  .nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-hamburger.open span:nth-child(2) { opacity: 0; }
+  .nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* Close button inside mobile menu */
+  .nav-close {
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 8px;
+    align-self: flex-end;
+    margin-bottom: 8px;
+    width: 44px;
+    height: 44px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Nav links — hidden by default on mobile, full-width overlay */
+  .nav-links {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+    order: 3;
+    padding: 8px 0 16px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .nav-links.open { display: flex; }
+
+  /* Mobile nav links — card-style tap targets */
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    font-size: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--fg-muted);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+
+  .nav-link:hover {
+    color: var(--fg);
+    background: var(--accent-dim);
+    border-color: var(--border-strong);
+  }
+
+  .nav-link.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-color: var(--border-strong);
+  }
+
+  /* Nav actions (wallet + CTA) — visible on mobile */
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  /* Make sure CTA wraps properly */
+  .nav-actions .btn { font-size: 0.8125rem; padding: 8px 14px; }
+}
+
+@media (min-width: 769px) {
+  .nav-hamburger { display: none; }
+  .nav-links { display: flex !important; flex-direction: row; align-items: center; }
+  .nav-actions { margin-left: auto; }
+}
+
+/* =====================
+   PAGE LAYOUT
+   ===================== */
+@media (max-width: 768px) {
+  .page { padding: 80px 20px 32px !important; }
+  .page-title { font-size: 1.75rem !important; }
+}
+
+/* =====================
+   DASHBOARD
+   ===================== */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .qc-summary {
+    grid-template-columns: 1fr !important;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
+  .actions .btn {
+    font-size: 0.8125rem;
+    padding: 8px 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =====================
+   READINGS TABLE
+   ===================== */
+@media (max-width: 768px) {
+  .filter-bar { flex-wrap: wrap; gap: 8px; }
+  .filter-bar .btn { font-size: 0.8125rem; padding: 8px 12px; }
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+  /* Compact mobile table */
+  th, td {
+    padding: 10px 12px;
+    font-size: 0.8125rem;
+  }
+
+  /* Hide less critical columns on tiny screens */
+  .col-unit { display: none; }
+  .col-serial { font-size: 0.75rem; }
+}
+
+/* =====================
+   LEDGER BLOCKS
+   ===================== */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .stat-card { padding: 16px !important; }
+  .stat-value { font-size: 1.25rem !important; }
+
+  .chain { gap: 4px; }
+
+  .block {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+    padding: 14px 16px !important;
+  }
+
+  .block-num { font-size: 1rem; }
+
+  .block-meta { text-align: left; }
+
+  .chain-connector {
+    height: 8px;
+    width: 2px;
+    margin-left: 22px;
+  }
+}
+
+/* =====================
+   REVIEW / QC PACKET CARDS
+   ===================== */
+@media (max-width: 768px) {
+  .packet-meta {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .packet-value { font-size: 1.5rem !important; }
+
+  .attest-form {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .attest-form select,
+  .attest-form textarea {
+    width: 100% !important;
+    min-width: unset;
+  }
+
+  .attest-form .btn { width: 100%; }
+
+  /* Wallet sign section */
+  .wallet-sign-section .btn { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .packet-meta {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =====================
+   SUBMIT FORM
+   ===================== */
+@media (max-width: 768px) {
+  .form-card { padding: 20px !important; }
+
+  .sensor-type-select {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Make sensor type buttons easier to tap */
+  .sensor-type-btn { padding: 14px 10px !important; }
+  .sensor-type-name { font-size: 0.9375rem; }
+
+  .tab-btn { padding: 10px 16px; font-size: 0.8125rem; }
+
+  .file-drop { padding: 36px 16px; }
+
+  .result-row { flex-direction: column; gap: 2px; }
+  .result-value { text-align: left; }
+}
+
+@media (max-width: 480px) {
+  .sensor-type-select {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Ensure all inputs and buttons are full-width touch targets */
+  input, select, textarea, .btn {
+    min-height: 44px;
+    font-size: 1rem !important;
+  }
+}
+
+/* =====================
+   PRICING PAGE
+   ===================== */
+@media (max-width: 768px) {
+  .tiers { grid-template-columns: 1fr !important; }
+  .cta-form-row { grid-template-columns: 1fr !important; }
+  .compliance-strip { padding: 40px 20px; }
+  .compliance-badges { gap: 10px; justify-content: center; }
+}
+
+/* =====================
+   UTILITY — ENSURE NO OVERFLOW-X
+   ===================== */
+* { box-sizing: border-box; }
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Ensure all interactive elements meet touch target minimum */
+a, button, [role="button"] {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}

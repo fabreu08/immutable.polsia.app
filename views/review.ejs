@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Immutable QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: var(--bg); color: var(--fg); font-family: var(--font-body); }
+    .page { max-width: 1200px; margin: 0 auto; padding: 100px 40px 40px; }
+    .page-title { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
+    .page-sub { color: var(--fg-muted); margin-bottom: 32px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+    .tab { padding: 8px 16px; font-size: 0.875rem; color: var(--fg-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab:hover { color: var(--fg); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-count { font-family: var(--font-mono); font-size: 0.75rem; margin-left: 6px; }
+    .packet-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .packet-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+    .packet-value { font-size: 1.75rem; font-weight: 600; font-family: var(--font-mono); color: var(--accent); }
+    .packet-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .meta-item { display: flex; flex-direction: column; gap: 2px; }
+    .meta-label { font-size: 0.75rem; color: var(--fg-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta-value { font-size: 0.875rem; color: var(--fg); }
+    .attest-form { display: flex; gap: 8px; align-items: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    select, textarea { background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 8px 12px; border-radius: 6px; font-family: var(--font-body); font-size: 0.875rem; }
+    textarea { width: 100%; resize: vertical; min-height: 60px; }
+    .btn { padding: 8px 16px; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; font-family: var(--font-body); }
+    .btn-approve { background: var(--accent); color: var(--bg); }
+    .btn-reject { background: rgba(239,68,68,0.2); color: #EF4444; border: 1px solid rgba(239,68,68,0.4); }
+    .btn-flag { background: rgba(245,158,11,0.15); color: #F59E0B; border: 1px solid rgba(245,158,11,0.4); }
+    .btn-submit { background: var(--accent); color: var(--bg); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-family: var(--font-mono); font-weight: 500; }
+    .badge-pending { background: rgba(245,158,11,0.15); color: #F59E0B; }
+    .badge-approved { background: var(--accent-dim); color: var(--accent); }
+    .badge-rejected { background: rgba(239,68,68,0.15); color: #EF4444; }
+    .badge-flagged { background: rgba(245,158,11,0.15); color: #F59E0B; }
+    .badge-ph { background: rgba(139,92,246,0.15); color: #8B5CF6; }
+    .badge-temp { background: rgba(59,130,246,0.15); color: #3B82F6; }
+    .mono { font-family: var(--font-mono); font-size: 0.8125rem; }
+    .hash { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; }
+    .muted { color: var(--fg-muted); }
+    .empty { text-align: center; padding: 60px; color: var(--fg-muted); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">IMMUTABLE QC</a>
+      <div class="nav-links">
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+        <a href="/readings" class="nav-link">Readings</a>
+        <a href="/ledger" class="nav-link">Ledger</a>
+        <a href="/review" class="nav-link active">Review</a>
+        <a href="/submit" class="nav-link">Submit</a>
+      </div>
+      <div class="nav-actions">
+        <%- include('partials/wallet-btn') %>
+      </div>
+      <button class="nav-hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open'); this.classList.toggle('open');" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open'); document.querySelector('.nav-hamburger').classList.remove('open');" aria-label="Close menu">✕</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <h1 class="page-title">QC Packet Review</h1>
+    <p class="page-sub">Review and attest instrument readings</p>
+
+    <div class="tabs">
+      <% const statuses = ['pending', 'approved', 'rejected', 'flagged']; %>
+      <% for (const s of statuses) { %>
+        <% const cnt = qcStats.find(q => q.status === s)?.c || '0'; %>
+        <a href="/review?status=<%= s %>" class="tab <%= selectedStatus === s ? 'active' : '' %>">
+          <%= s.charAt(0).toUpperCase() + s.slice(1) %><span class="tab-count">(<%= cnt %>)</span>
+        </a>
+      <% } %>
+    </div>
+
+    <% if (packets.length === 0) { %>
+      <div class="empty">
+        <p>No <%= selectedStatus %> packets.</p>
+      </div>
+    <% } else { %>
+      <% for (const p of packets) { %>
+        <div class="packet-card">
+          <div class="packet-header">
+            <div>
+              <span class="badge badge-<%= p.status %>"><%= p.status %></span>
+              <span class="badge <%= p.sensor_type === 'ph' ? 'badge-ph' : 'badge-temp' %>" style="margin-left:6px;">
+                <%= p.sensor_type === 'ph' ? 'pH' : 'Temperature' %>
+              </span>
+            </div>
+            <div class="packet-value"><%= p.value %> <span style="font-size:1rem;color:var(--fg-muted);"><%= p.unit %></span></div>
+          </div>
+
+          <div class="packet-meta">
+            <div class="meta-item">
+              <span class="meta-label">Instrument</span>
+              <span class="meta-value"><%= p.iname %></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Serial</span>
+              <span class="meta-value mono"><%= p.iserial %></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Block</span>
+              <span class="meta-value mono" style="color:var(--accent);">#<%= p.block_number %></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Captured</span>
+              <span class="meta-value"><%= new Date(p.captured_at).toLocaleString() %></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Assigned Reviewer</span>
+              <span class="meta-value"><%= p.assigned_name || 'Unassigned' %></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Packet ID</span>
+              <span class="meta-value mono">#<%= p.id %></span>
+            </div>
+          </div>
+
+          <div class="hash" style="margin-bottom:16px;">
+            Reading hash: <%= p.reading_hash %>
+          </div>
+
+          <% if (p.status === 'pending') { %>
+            <form class="attest-form" method="post" action="/api/qc-packets/<%= p.id %>/attest">
+              <input type="hidden" name="packetId" value="<%= p.id %>">
+              <select name="reviewerId" required style="min-width:200px;">
+                <option value="">Select reviewer…</option>
+                <% for (const rev of reviewers) { %>
+                  <option value="<%= rev.id %>"><%= rev.name %> (<%= rev.role %>)</option>
+                <% } %>
+              </select>
+              <select name="action" required>
+                <option value="approved">Approve</option>
+                <option value="rejected">Reject</option>
+                <option value="flagged">Flag for follow-up</option>
+              </select>
+              <textarea name="notes" placeholder="Attestation notes (optional)" style="flex:1;"></textarea>
+              <button type="submit" class="btn btn-submit" data-track="qc-packet-attest">Attest</button>
+            </form>
+          <% } %>
+
+          <!-- On-chain wallet signing -->
+          <div class="wallet-sign-section" style="margin-top:12px;padding:12px 0 0;border-top:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="meta-label" style="font-size:0.75rem;">ON-CHAIN ATTESTATION</span>
+              <button class="btn wallet-sign-btn"
+                data-packet-id="<%= p.id %>"
+                data-reading-hash="<%= p.reading_hash %>"
+                data-track="qc-wallet-sign"
+                style="padding:6px 14px;font-size:0.8125rem;background:var(--accent-dim);color:var(--accent);border:1px solid var(--border-strong);"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="18" cy="16" r="1"/></svg>
+                Sign with Wallet
+              </button>
+            </div>
+            <div class="wallet-sign-result" id="walletResult-<%= p.id %>" style="display:none;margin-top:8px;padding:10px;background:var(--accent-dim);border-radius:6px;border:1px solid var(--border);font-size:0.8125rem;"></div>
+          </div>
+
+          <% if (p.notes) { %>
+            <div style="margin-top:12px;padding:12px;background:var(--bg);border-radius:6px;border:1px solid var(--border);">
+              <span class="muted" style="font-size:0.8125rem;"><strong>Notes:</strong> <%= p.notes %></span>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
+    <% } %>
+  </div>
+
+  <script src="/js/analytics.js"></script>
+  <script>
+    document.querySelectorAll('.attest-form').forEach(form => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const packetId = form.action.split('/').slice(-1)[0];
+        const res = await fetch(`/api/qc-packets/${packetId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reviewerId: parseInt(fd.get('reviewerId')),
+            action: fd.get('action'),
+            notes: fd.get('notes') || null,
+          }),
+        });
+        if (res.ok) { form.closest('.packet-card').remove(); location.reload(); }
+        else { alert('Attestation failed: ' + (await res.json()).error); }
+      });
+    });
+
+    // Wallet signing for QC packets
+    document.querySelectorAll('.wallet-sign-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const packetId = btn.dataset.packetId;
+        const readingHash = btn.dataset.readingHash;
+        const resultEl = document.getElementById('walletResult-' + packetId);
+
+        if (!IQC_WALLET.isWalletAvailable()) {
+          resultEl.style.display = 'block';
+          resultEl.style.borderColor = 'rgba(245,158,11,0.4)';
+          resultEl.innerHTML = '<span style="color:#F59E0B;">No wallet detected — install MetaMask to sign on-chain.</span>';
+          return;
+        }
+
+        const state = IQC_WALLET.getState();
+        if (!state.connected) {
+          try {
+            await IQC_WALLET.connect();
+          } catch (err) {
+            resultEl.style.display = 'block';
+            resultEl.style.borderColor = 'rgba(239,68,68,0.4)';
+            resultEl.innerHTML = '<span style="color:#EF4444;">Connection failed: ' + err.message + '</span>';
+            return;
+          }
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Signing…';
+
+        try {
+          const result = await IQC_WALLET.submitOnChainAttestation(packetId, readingHash);
+          resultEl.style.display = 'block';
+          resultEl.style.borderColor = 'var(--border-strong)';
+          const att = result.attestation;
+          resultEl.innerHTML = [
+            '<div style="color:var(--accent);font-weight:500;margin-bottom:6px;">✓ Wallet signature recorded</div>',
+            '<div style="display:flex;justify-content:space-between;font-size:0.75rem;"><span class="muted">Signer</span><span class="mono">' + IQC_WALLET.shortAddress(att.wallet_address) + '</span></div>',
+            '<div style="display:flex;justify-content:space-between;font-size:0.75rem;"><span class="muted">Chain</span><span class="mono">' + (IQC_WALLET.CHAINS[att.chain_id]?.name || att.chain_id) + '</span></div>',
+            '<div style="display:flex;justify-content:space-between;font-size:0.75rem;"><span class="muted">Signature</span><span class="mono" style="word-break:break-all;max-width:240px;text-align:right;">' + att.signature.substring(0, 32) + '…</span></div>',
+          ].join('');
+          btn.textContent = '✓ Signed';
+          btn.style.background = 'var(--accent-dim)';
+          btn.style.color = 'var(--accent)';
+        } catch (err) {
+          resultEl.style.display = 'block';
+          resultEl.style.borderColor = 'rgba(239,68,68,0.4)';
+          resultEl.innerHTML = '<span style="color:#EF4444;">' + err.message + '</span>';
+          btn.disabled = false;
+          btn.textContent = 'Sign with Wallet';
+        }
+      });
+    });
+  </script>
+<script>
+  document.addEventListener('click', function(e) {
+    var nav = document.querySelector('.nav-links');
+    var hamburger = document.querySelector('.nav-hamburger');
+    if (nav && hamburger && nav.classList.contains('open')) {
+      if (!nav.contains(e.target) && !hamburger.contains(e.target)) {
+        nav.classList.remove('open');
+        hamburger.classList.remove('open');
+      }
+    }
+  });
+</script>
+</body>
+</html>
