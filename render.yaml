@@ -2,9 +2,15 @@ services:
   - type: web
     runtime: node
     name: app
-    buildCommand: npm install
+    region: oregon
+    plan: starter
+    buildCommand: npm install && npm run migrate
     startCommand: npm start
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        sync: false   # set this in the Render dashboard as a secret
+      # Add any other secrets here (e.g. OPENAI_API_KEY, STRIPE_SECRET_KEY) as sync: false
