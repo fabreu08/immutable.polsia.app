@@ -53,13 +53,13 @@ async function runCoreMigrations(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS instruments (
       id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, sensor_type VARCHAR(50) NOT NULL,
-      serial_number VARCHAR(100), location VARCHAR(255), created_at TIMESTAMPTZ DEFAULT NOW()
+      serial_number VARCHAR(100), location VARCHAR(255), active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS readings (
       id SERIAL PRIMARY KEY, instrument_id INTEGER REFERENCES instruments(id),
-      value DOUBLE PRECISION NOT NULL, unit VARCHAR(50), timestamp TIMESTAMPTZ DEFAULT NOW(),
+      value DOUBLE PRECISION NOT NULL, unit VARCHAR(50), captured_at TIMESTAMPTZ DEFAULT NOW(), timestamp TIMESTAMPTZ DEFAULT NOW(),
       sensor_type VARCHAR(50), signature TEXT, chain_hash TEXT, measurement_metadata JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
@@ -73,7 +73,7 @@ async function runCoreMigrations(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS reviewers (
       id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL,
-      role VARCHAR(50), department VARCHAR(255), created_at TIMESTAMPTZ DEFAULT NOW()
+      role VARCHAR(50), department VARCHAR(255), active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
   await client.query(`
