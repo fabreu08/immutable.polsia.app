@@ -29,6 +29,41 @@ app.get('/health', async (req, res) => {
   }
 });
 
+
+// Ensure core tables exist (runs on every startup)
+async function ensureTables() {
+  const { pool } = require('./db/index');
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS readings (
+      id SERIAL PRIMARY KEY,
+      instrument_id INTEGER,
+      value DOUBLE PRECISION NOT NULL,
+      unit VARCHAR(50),
+      captured_at TIMESTAMPTZ DEFAULT NOW(),
+      timestamp TIMESTAMPTZ DEFAULT NOW(),
+      sensor_type VARCHAR(50),
+      signature TEXT,
+      chain_hash TEXT,
+      measurement_metadata JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS qc_packets (
+      id SERIAL PRIMARY KEY,
+      reading_id INTEGER,
+      assigned_reviewer_id INTEGER,
+      status VARCHAR(20) DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
+    console.log('[db] Core tables verified');
+  } catch (e) {
+    console.error('[db] Table creation error:', e.message);
+  }
+}
+ensureTables();
+
   // Root → Dashboard for app.immutableqc.com
 app.get('/', (_req, res) => res.redirect('/dashboard'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }))
