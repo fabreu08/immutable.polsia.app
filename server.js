@@ -33,7 +33,6 @@ app.get('/health', async (req, res) => {
 app.get('/', (_req, res) => res.redirect('/dashboard'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }))
 
-});
 
 // API routes
 app.use('/api/instruments', require('./routes/instruments'));
