@@ -48,7 +48,7 @@
         <a href="/review" class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/review' ? 'active' : '' %>"><span class="nav-icon">&#10003;</span>Review</a>
         <a href="/submit" class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/submit' ? 'active' : '' %>"><span class="nav-icon">&#8593;</span>Submit</a>
       </div>
-      <div class="nav-actions" style="align-items: center">
+      <div class="nav-actions" style="display:flex; align-items:center; gap:12px">
         <%- include('partials/wallet-btn') %>
         <a href="/submit" class="btn btn-primary">Manual Data Entry</a>
       </div>
