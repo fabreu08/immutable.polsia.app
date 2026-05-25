@@ -19,7 +19,7 @@ const IQC_WALLET = (() => {
   };
 
   // IQC contract on Base Sepolia — used when on that chain
-  const IQC_CONTRACT = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
+  const IQC_CONTRACT = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
   const IQC_CHAIN_ID = 84532; // Base Sepolia
 
   // Minimal ERC-20 ABI for optional IQC token interaction
@@ -125,7 +125,7 @@ const IQC_WALLET = (() => {
 
     // ABI for the attest function on the IQC contract
     const ATTEST_ABI = [
-      'function attest(bytes32 dataHash, uint256 packetId, string calldata metadata) external',
+      'function commitQCPacket(bytes32 dataHash, uint256 packetId) external',
     ];
     const contract = new ethers.Contract(IQC_CONTRACT, ATTEST_ABI, signer);
 
@@ -141,7 +141,7 @@ const IQC_WALLET = (() => {
 
     // Send transaction — this triggers MetaMask
     console.log('[wallet] Calling attest(', dataHashBytes32, packetId, metadata, ') on', IQC_CONTRACT);
-    const tx = await contract.attest(dataHashBytes32, BigInt(packetId), metadata);
+    const tx = await contract.commitQCPacket(dataHashBytes32, BigInt(packetId));
     console.log('[wallet] TX submitted:', tx.hash);
 
     // Wait for confirmation
