@@ -66,7 +66,7 @@ async function runCoreMigrations(client) {
   `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS qc_packets (
-      id SERIAL PRIMARY KEY, reading_id INTEGER REFERENCES readings(id),
+      id SERIAL PRIMARY KEY, reading_id INTEGER REFERENCES readings(id), assigned_reviewer_id INTEGER REFERENCES reviewers(id),
       status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
