@@ -448,66 +448,14 @@
     });
 
     // Faucet request handler
-    async function handleFaucetRequest(e) {
-      e.preventDefault();
-      const faucetBtn = document.getElementById('faucetBtn');
-      faucetBtn.disabled = true;
-      faucetBtn.textContent = 'Sending…';
-      try {
-        const result = await IQC_WALLET.requestFaucetTokens();
-        faucetBtn.textContent = 'Sent!';
-        faucetBtn.style.background = '#16a34a';
-        faucetBtn.style.color = '#fff';
-        // Hide banner after success
-        document.getElementById('faucetBanner').classList.remove('visible');
-        document.getElementById('lowBalanceHint').classList.remove('visible');
-        // Show explorer link briefly
-        const link = document.createElement('a');
-        link.href = result.explorerUrl;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        link.className = 'tx-link';
-        link.style.display = 'block';
-        link.style.marginTop = '8px';
-        link.textContent = '✓ Test tokens sent — view on Basescan →';
-        faucetBtn.parentNode.appendChild(link);
-        // Refresh balance in wallet modal if open
-        const modal = document.getElementById('walletModal');
-        if (modal && modal.classList.contains('visible')) {
-          const bal = await IQC_WALLET.getIqcBalance();
-          document.getElementById('iqcBalance').textContent = bal + ' IQC';
-        }
-      } catch (err) {
-        faucetBtn.textContent = 'Retry';
-        faucetBtn.disabled = false;
-        alert('Faucet error: ' + err.message);
-      }
-    }
-
-    // Check IQC balance on page load if wallet is already connected
-    (async function() {
-      const state = IQC_WALLET.getState();
-      if (state.connected && state.isIqcChain) {
-        const balance = await IQC_WALLET.getIqcBalance();
-        const balanceNum = parseFloat(balance) || 0;
-        if (balanceNum < 0.001) {
-          document.getElementById('faucetBanner').classList.add('visible');
-          document.getElementById('lowBalanceHint').classList.add('visible');
-        }
-      }
-    })();
-  </script>
-<script>
-  document.addEventListener('click', function(e) {
-    var nav = document.querySelector('.nav-links');
-    var hamburger = document.querySelector('.nav-hamburger');
-    if (nav && hamburger && nav.classList.contains('open')) {
-      if (!nav.contains(e.target) && !hamburger.contains(e.target)) {
-        nav.classList.remove('open');
-        hamburger.classList.remove('open');
-      }
-    }
-  });
+async function handleFaucetRequest(e) {
+  e.preventDefault();
+  const state = IQC_WALLET.getState();
+  const address = state.connectedAddress || "";
+  const subject = encodeURIComponent("Request Base Sepolia IQC Test Tokens");
+  const body = encodeURIComponent(`Wallet: ${address}\n\nPlease send some test IQC tokens.`);
+  window.location.href = `mailto:hi@immutableqc.com?subject=${subject}&body=${body}`;
+}
 </script>
 </body>
 </html>
