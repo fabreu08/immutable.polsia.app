@@ -19,7 +19,8 @@ const IQC_WALLET = (() => {
   };
 
   // IQC contract on Base Sepolia — used when on that chain
-  const IQC_CONTRACT = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
+  const IQC_REGISTRY = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
+const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
   const IQC_CHAIN_ID = 84532; // Base Sepolia
 
   // Minimal ERC-20 ABI for optional IQC token interaction
@@ -127,7 +128,7 @@ const IQC_WALLET = (() => {
     const ATTEST_ABI = [
       'function commitQCPacket(bytes32 dataHash, uint256 packetId) external',
     ];
-    const contract = new ethers.Contract(IQC_CONTRACT, ATTEST_ABI, signer);
+    const contract = new ethers.Contract(IQC_REGISTRY, ATTEST_ABI, signer);
 
     // Build metadata string for the attestation
     const metadata = JSON.stringify({
@@ -140,7 +141,7 @@ const IQC_WALLET = (() => {
     const dataHashBytes32 = readingHash.startsWith('0x') ? readingHash : '0x' + readingHash;
 
     // Send transaction — this triggers MetaMask
-    console.log('[wallet] Calling attest(', dataHashBytes32, packetId, metadata, ') on', IQC_CONTRACT);
+    console.log('[wallet] Calling attest(', dataHashBytes32, packetId, metadata, ') on', IQC_REGISTRY);
     const tx = await contract.commitQCPacket(dataHashBytes32, BigInt(packetId));
     console.log('[wallet] TX submitted:', tx.hash);
 
@@ -173,7 +174,7 @@ const IQC_WALLET = (() => {
     if (currentChainId !== IQC_CHAIN_ID) return null;
 
     try {
-      const contract = new ethers.Contract(IQC_CONTRACT, ERC20_ABI, provider);
+      const contract = new ethers.Contract(IQC_TOKEN, ERC20_ABI, provider);
       const balance = await contract.balanceOf(connectedAddress);
       return ethers.formatUnits(balance, 18);
     } catch {
@@ -186,13 +187,13 @@ const IQC_WALLET = (() => {
     if (!provider || currentChainId !== IQC_CHAIN_ID) return null;
 
     try {
-      const contract = new ethers.Contract(IQC_CONTRACT, ERC20_ABI, provider);
+      const contract = new ethers.Contract(IQC_TOKEN, ERC20_ABI, provider);
       const [name, symbol, totalSupply] = await Promise.all([
         contract.name(),
         contract.symbol(),
         contract.totalSupply(),
       ]);
-      return { name, symbol, totalSupply: ethers.formatUnits(totalSupply, 18), address: IQC_CONTRACT };
+      return { name, symbol, totalSupply: ethers.formatUnits(totalSupply, 18), address: IQC_REGISTRY };
     } catch {
       return null;
     }
@@ -257,7 +258,7 @@ const IQC_WALLET = (() => {
     requestFaucetTokens,
     shortAddress,
     CHAINS,
-    IQC_CONTRACT,
+    IQC_REGISTRY,
     IQC_CHAIN_ID,
   };
 })();
