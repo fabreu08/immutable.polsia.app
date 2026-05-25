@@ -119,7 +119,7 @@ app.get('/dashboard', async (_req, res) => {
   }
 });
 
-app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>'));
 app.get('/review', async (req, res) => {
   try {
     const { pool } = require('./db/index');
