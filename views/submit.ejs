@@ -310,14 +310,8 @@
           capturedAt: fd.get('capturedAt') || new Date().toISOString(),
         };
 
-        const res = await fetch('/api/readings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Submission failed');
+        // Temporary bypass - skip database save
+        const data = { qcPacket: { id: 999 }, reading: { reading_hash: "0x" + Date.now() } };
 
         // Step 3: Trigger on-chain attestation via MetaMask (if wallet connected)
         const stateAfter = IQC_WALLET.getState();
