@@ -30,7 +30,10 @@ app.get('/health', async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
-app.get('/', (_req, res) => res.render('layout', buildLandingContext()));
+app.get('/', async (_req, res) => {
+  // Redirect root to dashboard for app.immutableqc.com
+  res.redirect('/dashboard');
+});
 
 // API routes
 app.use('/api/instruments', require('./routes/instruments'));
