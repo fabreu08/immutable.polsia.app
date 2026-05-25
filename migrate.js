@@ -1,24 +1,5 @@
 /**
  * Database Migration Runner
- *
- * Runs on every deploy via `npm run build`.
- *
- * How it works:
- * 1. Creates core tables (users, _migrations) - always runs, idempotent
- * 2. Reads migrations from migrations/ folder
- * 3. Runs new migrations in order (tracked in _migrations table)
- *
- * To create a new migration:
- *   Create a file in migrations/ with format: {timestamp}_{name}.js
- *   Example: migrations/1704067200000_add_products_table.js
- *
- * Migration file format:
- *   module.exports = {
- *     name: 'add_products_table',
- *     up: async (client) => {
- *       await client.query(`CREATE TABLE products (...)`);
- *     }
- *   };
  */
 const { Pool } = require('pg');
 const fs = require('fs');
@@ -30,10 +11,8 @@ const pool = new Pool({
 
 async function migrate() {
   console.log('Running migrations...');
-
   const client = await pool.connect();
   try {
-    // 1. Create migration tracking table (always first)
     await client.query(`
       CREATE TABLE IF NOT EXISTS _migrations (
         id SERIAL PRIMARY KEY,
@@ -42,12 +21,8 @@ async function migrate() {
       )
     `);
 
-    // 2. Core tables (idempotent - safe to run every time)
     await runCoreMigrations(client);
-
-    // 3. Run migrations from migrations/ folder
     await runFolderMigrations(client);
-
     console.log('Migrations complete.');
   } finally {
     client.release();
@@ -55,13 +30,8 @@ async function migrate() {
   }
 }
 
-/**
- * Core tables that every app needs.
- * These use CREATE IF NOT EXISTS so they're safe to run repeatedly.
- */
 async function runCoreMigrations(client) {
-  // Users table with subscription support
-  // Used by Polsia for syncing end-user subscription status
+  // Users
   await client.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -70,7 +40,6 @@ async function runCoreMigrations(client) {
       password_hash VARCHAR(255),
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
-      -- Subscription fields (synced by Polsia when customer subscribes)
       stripe_subscription_id VARCHAR(255),
       subscription_status VARCHAR(50),
       subscription_plan VARCHAR(255),
@@ -78,63 +47,75 @@ async function runCoreMigrations(client) {
       subscription_updated_at TIMESTAMPTZ
     )
   `);
+  await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (LOWER(email))`);
 
-  // Unique constraint on email (required for UPSERT)
+  // QC Tables
   await client.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (LOWER(email))
+    CREATE TABLE IF NOT EXISTS instruments (
+      id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, sensor_type VARCHAR(50) NOT NULL,
+      serial_number VARCHAR(100), location VARCHAR(255), created_at TIMESTAMPTZ DEFAULT NOW()
+    )
   `);
-
-  // Index for subscription lookups
   await client.query(`
-    CREATE INDEX IF NOT EXISTS users_stripe_subscription_id_idx ON users (stripe_subscription_id)
+    CREATE TABLE IF NOT EXISTS readings (
+      id SERIAL PRIMARY KEY, instrument_id INTEGER REFERENCES instruments(id),
+      value DOUBLE PRECISION NOT NULL, unit VARCHAR(50), timestamp TIMESTAMPTZ DEFAULT NOW(),
+      sensor_type VARCHAR(50), signature TEXT, chain_hash TEXT, measurement_metadata JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS qc_packets (
+      id SERIAL PRIMARY KEY, reading_id INTEGER REFERENCES readings(id),
+      status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS reviewers (
+      id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL,
+      role VARCHAR(50), department VARCHAR(255), created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS attestations (
+      id SERIAL PRIMARY KEY, qc_packet_id INTEGER REFERENCES qc_packets(id),
+      reviewer_id INTEGER REFERENCES reviewers(id), action VARCHAR(20), comment TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+      id SERIAL PRIMARY KEY, block_hash TEXT NOT NULL, previous_hash TEXT, merkle_root TEXT,
+      reading_count INTEGER DEFAULT 0, block_number INTEGER, created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS wallet_attestations (
+      id SERIAL PRIMARY KEY, qc_packet_id INTEGER, wallet_address TEXT NOT NULL,
+      chain VARCHAR(50), signature TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW()
+    )
   `);
 }
 
-/**
- * Run migrations from migrations/ folder.
- * Each migration runs once and is tracked in _migrations table.
- */
 async function runFolderMigrations(client) {
   const migrationsDir = path.join(__dirname, 'migrations');
-
-  // Skip if no migrations folder
-  if (!fs.existsSync(migrationsDir)) {
-    return;
-  }
-
-  // Get all migration files, sorted by name (timestamp prefix ensures order)
-  const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.js'))
-    .sort();
-
-  if (files.length === 0) {
-    return;
-  }
-
-  // Get already-applied migrations
+  if (!fs.existsSync(migrationsDir)) return;
+  const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.js')).sort();
+  if (files.length === 0) return;
   const applied = await client.query('SELECT name FROM _migrations');
   const appliedNames = new Set(applied.rows.map(r => r.name));
-
-  // Run pending migrations
   for (const file of files) {
     const migration = require(path.join(migrationsDir, file));
     const name = migration.name || file.replace('.js', '');
-
-    if (appliedNames.has(name)) {
-      continue; // Already applied
-    }
-
+    if (appliedNames.has(name)) continue;
     console.log(`Running migration: ${name}`);
-
     try {
       await client.query('BEGIN');
       await migration.up(client);
       await client.query('INSERT INTO _migrations (name) VALUES ($1)', [name]);
       await client.query('COMMIT');
-      console.log(`Migration complete: ${name}`);
     } catch (err) {
       await client.query('ROLLBACK');
-      throw new Error(`Migration failed (${name}): ${err.message}`);
+      throw err;
     }
   }
 }
