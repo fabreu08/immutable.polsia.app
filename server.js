@@ -119,85 +119,85 @@ app.get('/dashboard', async (_req, res) => {
   }
 });
 
-app.get('/readings', async (req, res) => {
-  try {
-    const { pool } = require('./db/index');
-    const { limit = 50, offset = 0, sensor_type: st = '' } = req.query;
-    let q = `SELECT r.*, i.name as iname, i.serial_number as iserial, qp.status as qc_status
-             FROM readings r JOIN instruments i ON i.id = r.instrument_id
-             LEFT JOIN qc_packets qp ON qp.reading_id = r.id WHERE 1=1`;
-    const p = [];
-    if (st) { p.push(st); q += ` AND r.sensor_type = $${p.length}`; }
-    p.push(limit, offset);
-    q += ` ORDER BY r.captured_at DESC LIMIT $${p.length - 1} OFFSET $${p.length}`;
-    const [rows, total] = await Promise.all([pool.query(q, p), pool.query('SELECT COUNT(*) as c FROM readings')]);
-    res.render('readings', { readings: rows.rows, total: parseInt(total.rows[0].c), sensorType: st, currentPath: '/readings' });
-  } catch (err) {
-    res.status(500).send('Database error: ' + err.message);
-  }
-});
-
-app.get('/ledger', async (_req, res) => {
-  try {
-    const { pool } = require('./db/index');
-    const iqcContract = require('./services/iqc-contract');
-
-    const [chain, stats, onChain] = await Promise.all([
-      pool.query('SELECT * FROM ledger_entries ORDER BY block_number DESC LIMIT 50'),
-      pool.query('SELECT COUNT(*) as c, COALESCE(SUM(reading_count),0) as tr, COALESCE(MAX(block_number),0) as lb FROM ledger_entries'),
-      iqcContract.getRecentAttestations(50).catch(() => []),
-    ]);
-
-    res.render('ledger', {
-      chain: chain.rows,
-      stats: stats.rows[0],
-      onChainAttestations: onChain,
-      onChainStats: {
-        count: onChain.length,
-        contract: iqcContract.IQC_CONTRACT,
-        explorerBase: iqcContract.BASESCAN_BASE,
-      },
-      currentPath: '/ledger',
-    });
-  } catch (err) {
-    res.status(500).send('Database error: ' + err.message);
-  }
-});
-
-app.get('/review', async (req, res) => {
-  try {
-    const { pool } = require('./db/index');
-    const status = req.query.status || 'pending';
-    const [packets, reviewers, qcStats] = await Promise.all([
-      pool.query(
-        `SELECT qp.*, r.value, r.unit, r.sensor_type, r.captured_at, r.reading_hash, r.block_number,
-                i.name as iname, i.serial_number as iserial, ass_rev.name as assigned_name
-         FROM qc_packets qp
-         JOIN readings r ON r.id = qp.reading_id
-         JOIN instruments i ON i.id = r.instrument_id
-         LEFT JOIN reviewers ass_rev ON ass_rev.id = qp.assigned_reviewer_id
-         WHERE qp.status = $1
-         ORDER BY qp.created_at DESC LIMIT 100`,
-        [status]
-      ),
-      pool.query('SELECT * FROM reviewers WHERE active = true ORDER BY name'),
-      pool.query('SELECT status, COUNT(*) as c FROM qc_packets GROUP BY status'),
-    ]);
-    res.render('review', { packets: packets.rows, reviewers: reviewers.rows, selectedStatus: status, qcStats: qcStats.rows, currentPath: '/review' });
-  } catch (err) {
-    res.status(500).send('Database error: ' + err.message);
-  }
-});
-
-app.get('/submit', (_req, res) => res.render('submit', { currentPath: '/submit' }));
-
-app.get('/pricing', (_req, res) => res.render('pricing', { currentPath: '/pricing' }));
-
-app.listen(port, () => console.log(`Immutable QC running on port ${port}`));
-// === Auto-create missing tables on startup (Render Free workaround) ===
-const { pool } = require('./db/index');
-pool.query(`CREATE TABLE IF NOT EXISTS readings (
-  id SERIAL PRIMARY KEY,
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/readings', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
+app.get('/review', (req, res) => res.send('<h1>Coming soon</h1>));
   instrument_id INTEGER,
   value DOUBLE PRECISION NOT NULL,
   unit VARCHAR(50),
