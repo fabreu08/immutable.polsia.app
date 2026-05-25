@@ -29,13 +29,10 @@ app.get('/health', async (req, res) => {
   }
 });
 
-  // Redirect root to dashboard for app.immutableqc.com
+  // Root → Dashboard for app.immutableqc.com
+app.get('/', (_req, res) => res.redirect('/dashboard'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }))
 
-// Legacy landing page at root
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/legacy/index.html'));
-});
 });
 
 // API routes
