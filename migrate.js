@@ -94,6 +94,41 @@ async function runCoreMigrations(client) {
       chain VARCHAR(50), signature TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Analytics, Faucet, Demo requests (added 2026-05-29 to fix production schema)
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id SERIAL PRIMARY KEY,
+      event_name VARCHAR(128) NOT NULL,
+      properties JSONB DEFAULT '{}',
+      session_id VARCHAR(255),
+      user_agent TEXT,
+      ip_address VARCHAR(100),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS faucet_requests (
+      id SERIAL PRIMARY KEY,
+      wallet_address TEXT NOT NULL,
+      ip_address VARCHAR(100),
+      success BOOLEAN DEFAULT false,
+      error_message TEXT,
+      iqc_amount NUMERIC(18,8) DEFAULT 0.1,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS demo_requests (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      company VARCHAR(255),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
 }
 
 async function runFolderMigrations(client) {
