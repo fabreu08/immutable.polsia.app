@@ -123,3 +123,8 @@ app.get('/dashboard', async (_req, res) => {
   }
 });
 
+// Start the server
+app.listen(port, () => {
+  console.log(`Immutable QC running on port ${port}`);
+});
+
