@@ -1,23 +1,23 @@
 /**
- * services/iqc-contract.js — IQC token contract queries on Base Sepolia.
- * Queries on-chain attestation events from the IQC token contract.
- * Does NOT own wallet signing or QC packet lifecycle.
+ * services/iqc-contract.js — On-chain queries for IQC Alpha on Base Sepolia.
+ * Now points at the real deployed IQCRegistry (staking + commit model).
+ * Used primarily by the /ledger page to show real QCPacketCommitted events.
  */
 
 const { ethers } = require('ethers');
 
-const IQC_CONTRACT = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
+// Real deployed contracts from iqc-alpha
+const IQC_REGISTRY = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
+const IQC_TOKEN = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C';
 const BASE_SEPOLIA_RPC = 'https://sepolia.base.org';
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASESCAN_BASE = 'https://sepolia.basescan.org';
 
-// ERC-20 + Attestation ABI — events we query from the contract
-const CONTRACT_ABI = [
-  // ERC-20 standard (for context)
-  'event Transfer(address indexed from, address indexed to, uint256 value)',
-  // Attestation event — emitted when a QC packet reading hash is attested on-chain
-  // The contract may emit this in a future version; currently defined as contract interface
-  'event AttestationCreated(address indexed attestor, bytes32 indexed dataHash, uint256 indexed packetId, string metadata)',
+// Registry ABI (focus on the real commit event)
+const REGISTRY_ABI = [
+  'event QCPacketCommitted(address indexed validator, string instrumentId, string dataHash, uint256 feeBurned)',
+  'function getStakedBalance(address validator) external view returns (uint256)',
+  'function COMMIT_FEE() external view returns (uint256)',
 ];
 
 async function getProvider() {
@@ -25,30 +25,25 @@ async function getProvider() {
 }
 
 /**
- * Fetch AttestationCreated events from the IQC contract.
- * Falls back to an empty array if the contract has not yet emitted these events
- * (early-stage deployments may not have attestation events yet).
- *
- * @param {number} fromBlock — starting block number (default: 0)
- * @param {number} toBlock   — ending block number (default: 'latest')
- * @returns {Array} attestation records
+ * Fetch real QCPacketCommitted events from the deployed IQCRegistry.
+ * This is the authoritative on-chain record of QC packet commitments.
  */
 async function getOnChainAttestations(fromBlock = 0, toBlock = 'latest') {
   try {
     const provider = await getProvider();
-    const contract = new ethers.Contract(IQC_CONTRACT, CONTRACT_ABI, provider);
+    const contract = new ethers.Contract(IQC_REGISTRY, REGISTRY_ABI, provider);
 
-    const filter = contract.filters.AttestationCreated();
+    const filter = contract.filters.QCPacketCommitted();
     const events = await contract.queryFilter(filter, fromBlock, toBlock);
 
     return events.map((e) => ({
-      attestor: e.args.attestor,
+      validator: e.args.validator,
+      instrumentId: e.args.instrumentId,
       dataHash: e.args.dataHash,
-      packetId: e.args.packetId ? e.args.packetId.toString() : null,
-      metadata: e.args.metadata || '',
+      feeBurned: e.args.feeBurned ? ethers.formatUnits(e.args.feeBurned, 18) : '1',
       txHash: e.transactionHash,
       blockNumber: e.blockNumber,
-      blockTimestamp: null, // resolved below if available
+      blockTimestamp: null,
     }));
   } catch (err) {
     console.error('iqc-contract.getOnChainAttestations error:', err.message);
@@ -57,8 +52,7 @@ async function getOnChainAttestations(fromBlock = 0, toBlock = 'latest') {
 }
 
 /**
- * Fetch AttestationCreated events enriched with block timestamps.
- * Resolves block timestamps via batch provider calls to avoid flooding RPC.
+ * Enrich Registry commitments with block timestamps.
  */
 async function getOnChainAttestationsWithTimestamps(fromBlock = 0, toBlock = 'latest') {
   const attestations = await getOnChainAttestations(fromBlock, toBlock);
@@ -93,30 +87,32 @@ async function getOnChainAttestationsWithTimestamps(fromBlock = 0, toBlock = 'la
 }
 
 /**
- * Get IQC token basic on-chain stats (total supply, name, symbol).
+ * Get basic on-chain info for both the Registry and the IQC Token.
  */
 async function getIqcTokenInfo() {
   try {
     const provider = await getProvider();
-    const erc20ABI = [
+
+    const tokenABI = [
       'function name() view returns (string)',
       'function symbol() view returns (string)',
       'function totalSupply() view returns (uint256)',
-      'function owner() view returns (address)',
     ];
-    const contract = new ethers.Contract(IQC_CONTRACT, erc20ABI, provider);
-    const [name, symbol, totalSupply, owner] = await Promise.all([
-      contract.name(),
-      contract.symbol(),
-      contract.totalSupply(),
-      contract.owner().catch(() => null),
+
+    const token = new ethers.Contract(IQC_TOKEN, tokenABI, provider);
+    const [name, symbol, totalSupply] = await Promise.all([
+      token.name(),
+      token.symbol(),
+      token.totalSupply(),
     ]);
+
     return {
       name,
       symbol,
       totalSupply: ethers.formatUnits(totalSupply, 18),
-      owner,
-      explorerUrl: `${BASESCAN_BASE}/address/${IQC_CONTRACT}`,
+      tokenAddress: IQC_TOKEN,
+      registryAddress: IQC_REGISTRY,
+      explorerUrl: `${BASESCAN_BASE}/address/${IQC_REGISTRY}`,
     };
   } catch (err) {
     console.error('iqc-contract.getIqcTokenInfo error:', err.message);
@@ -125,17 +121,15 @@ async function getIqcTokenInfo() {
 }
 
 /**
- * Fetch all attestation events across a given range with a progress-safe limit.
- * Strips results to the latest N to avoid huge responses.
+ * Fetch recent real commitments from the IQCRegistry.
  */
 async function getRecentAttestations(limit = 100) {
   const provider = await getProvider();
   const latestBlock = await provider.getBlockNumber();
-  const fromBlock = Math.max(0, latestBlock - 5000); // last ~5000 blocks (~3.5 hrs on Base)
+  const fromBlock = Math.max(0, latestBlock - 5000);
 
   const attestations = await getOnChainAttestationsWithTimestamps(fromBlock, latestBlock);
 
-  // Return newest first, limited to `limit`
   return attestations
     .sort((a, b) => b.blockNumber - a.blockNumber)
     .slice(0, limit);
@@ -146,7 +140,8 @@ module.exports = {
   getOnChainAttestationsWithTimestamps,
   getIqcTokenInfo,
   getRecentAttestations,
-  IQC_CONTRACT,
+  IQC_REGISTRY,
+  IQC_TOKEN,
   BASE_SEPOLIA_CHAIN_ID,
   BASESCAN_BASE,
 };

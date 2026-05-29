@@ -1,45 +1,79 @@
-# Express + EJS + Postgres Starter
+# IQC Alpha Web App (Express)
 
-Minimal Node.js web app: Express server, EJS templates, PostgreSQL connection,
-migration runner, Render deployment config.
+This is the full-stack alpha web application for Immutable Quality Control.
 
-## Requirements
+It powers `alpha.immutableqc.com` and provides:
+- Instrument reading capture (manual + HPLC CSV upload)
+- ECDSA-signed readings + hash-chained ledger
+- QC packet creation + reviewer attestation workflow
+- EVM wallet connection (MetaMask) + on-chain commitments to the IQCRegistry on Base Sepolia
+- Faucet for testnet IQC tokens
+- Analytics + demo request collection
 
-- Node.js 20+
-- PostgreSQL database
+## Relationship to the rest of the repo
 
-## Environment Variables
+- `../contracts/` + Hardhat scripts: The canonical IQC smart contracts (`IQCToken` + `IQCRegistry`)
+- This `web/` directory: The production Express application that interacts with those contracts
+- `../frontend/`: Early Next.js marketing shell (separate from this app)
 
-- `DATABASE_URL` — PostgreSQL connection string (required)
-- `PORT` — Server port (default: 3000)
+## Key recent changes (ported)
 
-## Endpoints
+- Corrected on-chain submission to use the real deployed `IQCRegistry` ABI:
+  - `commitQCPacket(string instrumentId, string dataHash)`
+  - Requires prior staking of ≥1 IQC
+- Added `getStakedBalance()` client helper
+- `public/js/wallet.js` now properly calls the live Registry at `0x35259312d419Fad651a376a737Cb1b5666602E9E`
+- Wallet attestations are recorded both on-chain and in the `wallet_attestations` table
 
-- `GET /` — Landing page (renders `views/layout.ejs`)
-- `GET /health` — Health check
-
-## Layout
+## Directory map
 
 ```
-views/
-  layout.ejs           top-level template (entry point)
-  partials/            sections included from layout via <%- include('partials/<name>') %>
-public/
-  css/                 stylesheets, served at /css/<file>
-lib/
-  landing-context.js   builds the render context (slug, theme tokens, stylesheet links)
-server.js              Express app
-migrate.js             migration runner (run via `npm run migrate`)
+web/
+  server.js
+  routes/           API + page routes (readings, qc-packets, wallet, ledger, etc.)
+  db/               PostgreSQL query modules (one per entity)
+  views/            EJS templates (dashboard, submit, review, ledger, etc.)
+  services/         Business logic (crypto, ledger, qc-packet, hplc-parser, iqc-contract)
+  public/           Static assets + client JS (wallet.js is the key integration point)
+  lib/
+  jobs/
+  migrate.js        Database migration runner
+  render.yaml       Render.com deployment config
 ```
 
-## Local Development
+## Local development
 
 ```bash
+cd web
 npm install
+
+# Run migrations (requires DATABASE_URL)
+DATABASE_URL="postgresql://..." node migrate.js
+
+# Start the server
 DATABASE_URL="postgresql://..." npm run dev
 ```
 
+The app listens on `PORT` (default 3000).
+
+## On-chain requirements (Base Sepolia)
+
+To successfully call `commitQCPacket` from the UI:
+1. Wallet must be on Base Sepolia (chain 84532)
+2. The connected address must have staked at least 1 IQC to the Registry contract
+
+Use the Hardhat scripts in the repo root or add a staking helper in the UI for test wallets.
+
 ## Deployment
 
-Configured for Render via `render.yaml`. `npm run build` runs migrations on
-deploy.
+Currently deployed to Render (alpha.immutableqc.com) via `render.yaml`.
+
+The app expects:
+- `DATABASE_URL` (Neon Postgres)
+- Other optional env vars for Stripe, OpenAI, R2, etc. (not yet active)
+
+## Continuity notes
+
+Full project history and architecture decisions are in `web/CLAUDE.md` (brought over from the original development session). The contracts live in the sibling `contracts/` directory at repo root.
+
+This structure was created during the `feat/web-app-integration` branch to consolidate the previously separate web app repo with the smart contract work.

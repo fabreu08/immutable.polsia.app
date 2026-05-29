@@ -1,3 +1,9 @@
+# Render.com deployment configuration for the IQC Alpha web app.
+# This file lives inside web/ because the Express app is now a sub-package
+# in the consolidated iqc-alpha monorepo (see root README).
+#
+# When deploying on Render, set the root directory to `web/`.
+
 services:
   - type: web
     runtime: node

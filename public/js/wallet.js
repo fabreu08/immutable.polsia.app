@@ -18,18 +18,30 @@ const IQC_WALLET = (() => {
     10:      { name: 'Optimism',        explorer: 'https://optimistic.etherscan.io' },
   };
 
-  // IQC contract on Base Sepolia — used when on that chain
+  // IQC contracts on Base Sepolia (from iqc-alpha deployment)
   const IQC_REGISTRY = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
-const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
+  const IQC_TOKEN = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C'; // Real deployed IQCToken
   const IQC_CHAIN_ID = 84532; // Base Sepolia
 
-  // Minimal ERC-20 ABI for optional IQC token interaction
+  // Full ABI for the deployed IQCRegistry (staking + commit model)
+  const REGISTRY_ABI = [
+    'function stake(uint256 amount) external',
+    'function slash(address validator, uint256 amount) external',
+    'function commitQCPacket(string memory instrumentId, string memory dataHash) external',
+    'function getStakedBalance(address validator) external view returns (uint256)',
+    'function COMMIT_FEE() external view returns (uint256)',
+    'event QCPacketCommitted(address indexed validator, string instrumentId, string dataHash, uint256 feeBurned)',
+  ];
+
+  // Minimal ERC-20 ABI (for the real IQC token)
   const ERC20_ABI = [
     'function name() view returns (string)',
     'function symbol() view returns (string)',
     'function balanceOf(address) view returns (uint256)',
     'function totalSupply() view returns (uint256)',
   ];
+
+
 
   let provider = null;
   let signer = null;
@@ -114,47 +126,85 @@ const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
     emit();
   }
 
-  // ── Attest QC packet hash on-chain via IQC contract ──
-  // Calls attest(dataHash, packetId, metadata) on the IQC contract, which:
-  //   1. Opens MetaMask to confirm and sign the transaction
-  //   2. Submits the TX to Base Sepolia
-  //   3. Emits AttestationCreated event on-chain
-  // Returns the TX hash so it can be stored in wallet_attestations.
-  async function signPacketHash(readingHash, packetId) {
+  // ── Get current staked balance on the IQCRegistry ──
+  async function getStakedBalance() {
+    if (!provider || !connectedAddress || currentChainId !== IQC_CHAIN_ID) return null;
+    try {
+      const contract = new ethers.Contract(IQC_REGISTRY, REGISTRY_ABI, provider);
+      const staked = await contract.getStakedBalance(connectedAddress);
+      return ethers.formatUnits(staked, 18);
+    } catch (err) {
+      console.warn('[wallet] getStakedBalance failed:', err.message);
+      return null;
+    }
+  }
+
+  // ── Stake IQC tokens to the Registry (required to commit packets) ──
+  async function stake(amountInIqc) {
     if (!signer) throw new Error('Wallet not connected');
-    if (currentChainId !== IQC_CHAIN_ID) throw new Error(`Must be on Base Sepolia (chain ${IQC_CHAIN_ID}) to attest — current: ${currentChainId}`);
+    if (currentChainId !== IQC_CHAIN_ID) {
+      throw new Error(`Must be on Base Sepolia to stake`);
+    }
 
-    // ABI for the attest function on the IQC contract
-    const ATTEST_ABI = [
-      'function commitQCPacket(bytes32 dataHash, uint256 packetId) external',
-    ];
-    const contract = new ethers.Contract(IQC_REGISTRY, ATTEST_ABI, signer);
+    const token = new ethers.Contract(IQC_TOKEN, ERC20_ABI, signer);
+    const registry = new ethers.Contract(IQC_REGISTRY, REGISTRY_ABI, signer);
 
-    // Build metadata string for the attestation
-    const metadata = JSON.stringify({
-      source: 'immutable-qc-web',
-      timestamp: new Date().toISOString(),
-      chainId: currentChainId,
-    });
+    const amount = ethers.parseUnits(String(amountInIqc), 18);
 
-    // Parse readingHash as bytes32
-    const dataHashBytes32 = readingHash.startsWith('0x') ? readingHash : '0x' + readingHash;
+    console.log(`[wallet] Approving ${amountInIqc} IQC for staking...`);
+    const approveTx = await token.approve(IQC_REGISTRY, amount);
+    await approveTx.wait();
+    console.log('[wallet] Approve confirmed:', approveTx.hash);
 
-    // Send transaction — this triggers MetaMask
-    console.log('[wallet] Calling attest(', dataHashBytes32, packetId, metadata, ') on', IQC_REGISTRY);
-    const tx = await contract.commitQCPacket(dataHashBytes32, BigInt(packetId));
+    console.log(`[wallet] Staking ${amountInIqc} IQC...`);
+    const stakeTx = await registry.stake(amount);
+    const receipt = await stakeTx.wait();
+    console.log('[wallet] Stake confirmed:', stakeTx.hash);
+
+    const newStaked = await getStakedBalance();
+    return {
+      txHash: stakeTx.hash,
+      stakedBalance: newStaked,
+    };
+  }
+
+  // ── Commit a QC packet on-chain to the real IQCRegistry ──
+  // Matches the deployed contract:
+  //   commitQCPacket(string instrumentId, string dataHash)
+  // Requires the caller to have >= 1 IQC staked in the Registry.
+  async function commitQCPacket(instrumentId, dataHash) {
+    if (!signer) throw new Error('Wallet not connected');
+    if (currentChainId !== IQC_CHAIN_ID) {
+      throw new Error(`Must be on Base Sepolia (chain ${IQC_CHAIN_ID}) — current: ${currentChainId}`);
+    }
+
+    const contract = new ethers.Contract(IQC_REGISTRY, REGISTRY_ABI, signer);
+
+    // Normalize dataHash to 0x-hex string
+    let hash = dataHash;
+    if (!hash.startsWith('0x')) hash = '0x' + hash;
+
+    // Basic validation — Registry will also enforce stake
+    const staked = await contract.getStakedBalance(connectedAddress);
+    const fee = await contract.COMMIT_FEE().catch(() => ethers.parseUnits('1', 18));
+    if (staked < fee) {
+      const needed = ethers.formatUnits(fee, 18);
+      throw new Error(`Insufficient stake. You have ${ethers.formatUnits(staked, 18)} IQC staked. Need at least ${needed} IQC staked to commit. Use the stake() function or contact an operator.`);
+    }
+
+    console.log('[wallet] Calling commitQCPacket(', instrumentId, hash, ') on', IQC_REGISTRY);
+
+    const tx = await contract.commitQCPacket(instrumentId, hash);
     console.log('[wallet] TX submitted:', tx.hash);
 
-    // Wait for confirmation
     const receipt = await tx.wait();
     console.log('[wallet] TX confirmed in block', receipt.blockNumber);
 
-    // Build a human-readable message for the record
     const message = [
-      'Immutable QC — On-Chain Attestation',
+      'Immutable QC — On-Chain Commitment',
       '',
-      `QC Packet: #${packetId}`,
-      `Reading Hash: ${readingHash}`,
+      `Instrument: ${instrumentId}`,
+      `Data Hash: ${hash}`,
       `Chain: ${CHAINS[currentChainId]?.name || currentChainId}`,
       `TX Hash: ${tx.hash}`,
       `Timestamp: ${new Date().toISOString()}`,
@@ -165,7 +215,16 @@ const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
       message,
       signer: connectedAddress,
       chainId: currentChainId,
+      instrumentId,
+      dataHash: hash,
     };
+  }
+
+  // Legacy wrapper for older callers (kept for compatibility during transition)
+  async function signPacketHash(readingHash, packetId) {
+    // We no longer have packetId on-chain in the current Registry model.
+    // Use commitQCPacket(instrumentId, dataHash) instead for real commits.
+    throw new Error('signPacketHash(readingHash, packetId) is deprecated. Use commitQCPacket(instrumentId, dataHash) with the real Registry ABI.');
   }
 
   // ── IQC token balance (optional, only on Base Sepolia) ──
@@ -193,7 +252,7 @@ const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
         contract.symbol(),
         contract.totalSupply(),
       ]);
-      return { name, symbol, totalSupply: ethers.formatUnits(totalSupply, 18), address: IQC_REGISTRY };
+      return { name, symbol, totalSupply: ethers.formatUnits(totalSupply, 18), address: IQC_TOKEN };
     } catch {
       return null;
     }
@@ -212,10 +271,14 @@ const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
     return data;
   }
 
-  // ── Submit on-chain attestation to backend ──
-  // Calls the IQC contract, waits for confirmation, then records the attestation.
-  async function submitOnChainAttestation(packetId, readingHash) {
-    const signed = await signPacketHash(readingHash, packetId);
+  // ── Submit on-chain commitment to backend (records the real Registry tx) ──
+  // Calls the IQCRegistry.commitQCPacket, waits for confirmation, then records in wallet_attestations.
+  async function submitOnChainAttestation(packetId, readingHash, instrumentId) {
+    if (!instrumentId) {
+      instrumentId = 'UNKNOWN-INSTRUMENT';
+    }
+
+    const committed = await commitQCPacket(instrumentId, readingHash);
 
     const res = await fetch('/api/wallet/attest', {
       method: 'POST',
@@ -223,11 +286,10 @@ const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
       body: JSON.stringify({
         packetId,
         readingHash,
-        walletAddress: signed.signer,
-        chainId: signed.chainId,
-        txHash: signed.txHash,
-        // No signature field — the on-chain TX is the canonical attestation
-        message: signed.message,
+        walletAddress: committed.signer,
+        chainId: committed.chainId,
+        txHash: committed.txHash,
+        message: committed.message,
       }),
     });
 
@@ -251,6 +313,10 @@ const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
     disconnect,
     getState,
     onStateChange,
+    // New correct entry point
+    commitQCPacket,
+    getStakedBalance,
+    // Deprecated (will throw)
     signPacketHash,
     getIqcBalance,
     getIqcTokenInfo,
@@ -259,6 +325,10 @@ const IQC_TOKEN = '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
     shortAddress,
     CHAINS,
     IQC_REGISTRY,
+    IQC_TOKEN,
     IQC_CHAIN_ID,
+    // Staking
+    stake,
+    getStakedBalance,
   };
 })();

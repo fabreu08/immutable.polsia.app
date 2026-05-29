@@ -14,7 +14,7 @@ const IP_COOLDOWN_MS = 60 * 60 * 1000;     // 1 hour
 const MAX_PER_IP = 3;
 
 // IQC token config
-const IQC_CONTRACT = process.env.IQC_CONTRACT_ADDRESS || '0x5a1014b0221ee57078f5d63e32c841834464d2f9';
+const IQC_CONTRACT = process.env.IQC_CONTRACT_ADDRESS || '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C'; // Real deployed IQCToken
 const IQC_CHAIN_ID = 84532; // Base Sepolia
 const RPC_URL = process.env.BASE_SEPOLIA_RPC || 'https://sepolia.base.org';
 

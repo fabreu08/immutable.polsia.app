@@ -99,6 +99,12 @@
     <h1 class="page-title">Submit Reading</h1>
     <p class="page-sub">Capture and cryptographically sign instrument measurements</p>
 
+    <!-- Quick staking panel (dedicated UX for task 4) -->
+    <div style="max-width:720px; margin:0 auto 24px; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; font-size:0.875rem;">
+      <strong>On-chain commits require staking.</strong> Connect your wallet and use the wallet menu (top right) → "Stake 5 IQC" or the button below if your staked balance is low.
+      <button onclick="quickStakeFromPanel(this)" style="margin-left:12px; padding:4px 10px; font-size:0.75rem; background:#0a0a0a; border:1px solid var(--border); color:var(--accent); border-radius:6px; cursor:pointer;">Stake 5 IQC</button>
+    </div>
+
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('manual')">Manual Entry</button>
       <button class="tab-btn" onclick="switchTab('hplc')">Upload HPLC CSV</button>
@@ -225,6 +231,45 @@
 
   <script src="/js/analytics.js"></script>
   <script>
+    // Quick stake helper (used from submit result area)
+    async function handleQuickStake(btnEl) {
+      if (!IQC_WALLET || !IQC_WALLET.stake) {
+        alert('Wallet module not ready');
+        return;
+      }
+      btnEl.disabled = true;
+      btnEl.textContent = 'Staking 5 IQC...';
+      try {
+        await IQC_WALLET.stake(5);
+        btnEl.textContent = 'Stake successful!';
+        setTimeout(() => {
+          location.reload(); // simplest way to refresh balances
+        }, 1200);
+      } catch (err) {
+        alert('Staking failed: ' + err.message);
+        btnEl.disabled = false;
+        btnEl.textContent = 'Stake 5 IQC Now';
+      }
+    }
+
+    async function quickStakeFromPanel(btnEl) {
+      if (!IQC_WALLET || !IQC_WALLET.stake) {
+        alert('Wallet module not ready. Connect wallet first.');
+        return;
+      }
+      btnEl.disabled = true;
+      btnEl.textContent = 'Staking...';
+      try {
+        await IQC_WALLET.stake(5);
+        btnEl.textContent = 'Done!';
+        setTimeout(() => location.reload(), 900);
+      } catch (err) {
+        alert('Stake failed: ' + err.message);
+        btnEl.disabled = false;
+        btnEl.textContent = 'Stake 5 IQC';
+      }
+    }
+
     // Tab switching
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -310,33 +355,83 @@
           capturedAt: fd.get('capturedAt') || new Date().toISOString(),
         };
 
-        // Temporary bypass - skip database save
-        const data = { qcPacket: { id: 999 }, reading: { reading_hash: "0x" + Date.now() } };
+        // === REAL SUBMISSION: Create actual reading + QC packet ===
+        btn.textContent = 'Saving reading...';
+        const readingRes = await fetch('/api/readings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-        // Step 3: Trigger on-chain attestation via MetaMask (if wallet connected)
+        if (!readingRes.ok) {
+          const errData = await readingRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to save reading to ledger');
+        }
+
+        const realData = await readingRes.json();
+        const data = {
+          qcPacket: realData.qcPacket,
+          reading: realData.reading,
+          instrumentId: payload.instrumentSerial,
+        };
+
+        // Step 3: Trigger on-chain commitment via the real IQCRegistry
         const stateAfter = IQC_WALLET.getState();
         let attestationHtml = '';
         if (stateAfter.connected && stateAfter.isIqcChain) {
-          btn.textContent = 'Signing on-chain…';
+          btn.textContent = 'Checking stake...';
+
+          // === Staking UX: Check before attempting commit ===
+          let stakedBalance = '0';
           try {
-            const attResult = await IQC_WALLET.submitOnChainAttestation(data.qcPacket.id, data.reading.reading_hash);
+            stakedBalance = await IQC_WALLET.getStakedBalance() || '0';
+          } catch (e) {}
+
+          const stakedNum = parseFloat(stakedBalance);
+          if (stakedNum < 1) {
+            btn.textContent = 'Stake required';
+            result.className = 'result error';
+            result.style.display = 'block';
+            result.innerHTML = `
+              <div class="result-title">⚠ Staking Required</div>
+              <div style="font-size:0.875rem; margin-bottom:12px;">
+                You need at least <strong>1 IQC staked</strong> in the Registry to commit packets on-chain.<br>
+                Current staked: <strong>${stakedBalance} IQC</strong>
+              </div>
+              <button onclick="handleQuickStake(this)" style="padding:10px 16px; background:#EAB308; color:#000; border:none; border-radius:6px; font-weight:600; cursor:pointer;">
+                Stake 5 IQC Now
+              </button>
+            `;
+            btn.disabled = false;
+            btn.textContent = 'Sign & Submit to Ledger';
+            return;
+          }
+
+          btn.textContent = 'Committing on-chain…';
+
+          try {
+            const attResult = await IQC_WALLET.submitOnChainAttestation(
+              data.qcPacket.id,
+              data.reading.reading_hash,
+              data.instrumentId
+            );
             const explorerUrl = `https://sepolia.basescan.org/tx/${attResult.attestation.tx_hash}`;
             attestationHtml = `
               <div class="result-row"><span class="result-label">On-Chain TX</span><span class="result-value"><a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--accent);">${attResult.attestation.tx_hash.substring(0, 20)}… ↗</a></span></div>
-              <div class="result-row"><span class="result-label">Attestor</span><span class="result-value">${IQC_WALLET.shortAddress(attResult.attestation.wallet_address)}</span></div>`;
+              <div class="result-row"><span class="result-label">Attestor</span><span class="result-value">${IQC_WALLET.shortAddress(attResult.attestation.wallet_address)}</span></div>
+              <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrumentId}</span></div>`;
           } catch (attErr) {
-            console.warn('[submit] On-chain attestation failed:', attErr.message);
-            attestationHtml = `<div class="result-row"><span class="result-label">On-Chain</span><span class="result-value" style="color:#F59E0B;">⚠ Signed locally — on-chain failed: ${attErr.message}</span></div>`;
+            console.warn('[submit] On-chain commit failed:', attErr.message);
+            attestationHtml = `<div class="result-row"><span class="result-label">On-Chain</span><span class="result-value" style="color:#F59E0B;">⚠ Commit failed: ${attErr.message}</span></div>`;
           }
         }
 
         result.className = 'result success';
         result.innerHTML = `
           <div class="result-title">✓ Reading committed to ledger</div>
-          <div class="result-row"><span class="result-label">Block</span><span class="result-value">#${data.reading.block_number}</span></div>
-          <div class="result-row"><span class="result-label">Reading Hash</span><span class="result-value">${data.reading.reading_hash.substring(0, 20)}…</span></div>
-          <div class="result-row"><span class="result-label">ECDSA Signature</span><span class="result-value">${data.verification.signature.substring(0, 32)}…</span></div>
-          <div class="result-row"><span class="result-label">QC Packet</span><span class="result-value">#${data.qcPacket.id} · ${data.qcPacket.status}</span></div>
+          <div class="result-row"><span class="result-label">Reading ID</span><span class="result-value">#${data.reading.id}</span></div>
+          <div class="result-row"><span class="result-label">Reading Hash</span><span class="result-value">${(data.reading.reading_hash || '').substring(0, 20)}…</span></div>
+          <div class="result-row"><span class="result-label">QC Packet</span><span class="result-value">#${data.qcPacket.id} · ${data.qcPacket.status || 'pending'}</span></div>
           ${attestationHtml}
           <div style="margin-top:16px;text-align:center;">
             <a href="/readings" style="color:var(--accent);font-size:0.875rem;">View all readings →</a>

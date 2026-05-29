@@ -92,6 +92,14 @@
       <div class="label">IQC Token Balance</div>
       <div class="value" id="iqcBalance">—</div>
     </div>
+
+    <div class="iqc-token-info" id="iqcStakedInfo" style="display:none; margin-top: 8px;">
+      <div class="label">Staked Balance (for commits)</div>
+      <div class="value" id="iqcStakedBalance">—</div>
+      <button id="stakeBtn" style="margin-top:8px; width:100%; padding:6px 12px; font-size:0.75rem; background:#0a0a0a; border:1px solid var(--border); color:var(--accent); border-radius:6px; cursor:pointer;">
+        Stake 5 IQC
+      </button>
+    </div>
     <div class="wallet-modal-actions">
       <button class="btn-close-modal" onclick="document.getElementById('walletModal').classList.remove('visible')">Close</button>
       <button class="btn-disconnect" id="walletDisconnectBtn">Disconnect</button>
@@ -137,17 +145,47 @@
       '<div class="wallet-detail-row"><span class="wallet-detail-label">Full Address</span><span class="wallet-detail-value" style="font-size:0.7rem;word-break:break-all;">' + state.address + '</span></div>',
       '<div class="wallet-detail-row"><span class="wallet-detail-label">Chain</span><span class="wallet-detail-value">' + state.chainName + ' (' + state.chainId + ')</span></div>',
       state.isIqcChain ?
-        '<div class="wallet-detail-row"><span class="wallet-detail-label">IQC Contract</span><span class="wallet-detail-value" style="font-size:0.7rem;">' + IQC_WALLET.IQC_CONTRACT + '</span></div>' : '',
+        '<div class="wallet-detail-row"><span class="wallet-detail-label">IQC Registry</span><span class="wallet-detail-value" style="font-size:0.7rem;">' + IQC_WALLET.IQC_REGISTRY + '</span></div>' : '',
     ].join('');
 
     // Show IQC token balance if on Base Sepolia
     const tokenInfo = document.getElementById('iqcTokenInfo');
+    const stakedInfo = document.getElementById('iqcStakedInfo');
+
     if (state.isIqcChain) {
       tokenInfo.style.display = 'block';
       const balance = await IQC_WALLET.getIqcBalance();
       document.getElementById('iqcBalance').textContent = balance !== null ? balance + ' IQC' : 'Unable to fetch';
+
+      // Show staked balance (critical for commits)
+      stakedInfo.style.display = 'block';
+      const staked = await IQC_WALLET.getStakedBalance();
+      document.getElementById('iqcStakedBalance').textContent = staked !== null ? staked + ' IQC' : 'Unable to fetch';
+
+      // Wire stake button
+      const stakeBtn = document.getElementById('stakeBtn');
+      stakeBtn.onclick = async () => {
+        stakeBtn.disabled = true;
+        stakeBtn.textContent = 'Staking...';
+        try {
+          await IQC_WALLET.stake(5);
+          // Refresh balances
+          const newStaked = await IQC_WALLET.getStakedBalance();
+          document.getElementById('iqcStakedBalance').textContent = newStaked + ' IQC';
+          stakeBtn.textContent = 'Staked!';
+          setTimeout(() => {
+            stakeBtn.textContent = 'Stake 5 IQC';
+            stakeBtn.disabled = false;
+          }, 1800);
+        } catch (err) {
+          alert('Stake failed: ' + err.message);
+          stakeBtn.textContent = 'Stake 5 IQC';
+          stakeBtn.disabled = false;
+        }
+      };
     } else {
       tokenInfo.style.display = 'none';
+      stakedInfo.style.display = 'none';
     }
 
     modal.classList.add('visible');
