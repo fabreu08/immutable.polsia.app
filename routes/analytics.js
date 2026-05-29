@@ -22,9 +22,12 @@ router.post('/event', async (req, res) => {
     });
     res.json({ recorded: true, id: record.id });
   } catch (err) {
-    // Non-critical: don't fail requests if analytics fails
-    console.error('analytics event error:', err.message);
-    res.status(500).json({ error: 'Failed to record event' });
+    // Non-critical: analytics failures must never impact the app or pollute logs in production
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('analytics event error:', err.message);
+    }
+    // Always return success to the client so it doesn't retry or show errors
+    res.json({ recorded: false, skipped: true });
   }
 });
 
