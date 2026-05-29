@@ -15,6 +15,10 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+// Defensive table creation for tables that were historically created manually
+const { ensureTables } = require('./db/index');
+ensureTables().catch(() => { /* non-fatal */ });
+
 app.use(express.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
