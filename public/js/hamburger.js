@@ -20,6 +20,9 @@
           overlay.setAttribute('aria-hidden', 'false');
         }
         document.body.classList.add('nav-open');
+
+        // Change icon to close when open (works with both ☰ and span versions)
+        if (hamburger.textContent.trim() === '☰') hamburger.textContent = '✕';
       } else {
         navLinks.classList.remove('open');
         hamburger.classList.remove('open');
@@ -29,6 +32,8 @@
           overlay.setAttribute('aria-hidden', 'true');
         }
         document.body.classList.remove('nav-open');
+
+        if (hamburger.textContent.trim() === '✕') hamburger.textContent = '☰';
       }
     }
 
