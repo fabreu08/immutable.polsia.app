@@ -19,7 +19,8 @@ const IQC_WALLET = (() => {
   };
 
   // IQC contracts on Base Sepolia (from iqc-alpha deployment)
-  const IQC_REGISTRY = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
+  // Switched to V2 (with unstaking support) as the active registry for on-chain operations
+  const IQC_REGISTRY = '0x80c00E40DF46E36652319662929a49bCaeBE52A3'; // V2
   const IQC_TOKEN = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C'; // Real deployed IQCToken
   const IQC_CHAIN_ID = 84532; // Base Sepolia
 
