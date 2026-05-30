@@ -412,14 +412,12 @@
 
         if (relevant.length === 0) {
           container.innerHTML = `
-            No transactions found that interacted with the Registry contracts in your last ~300 transactions.<br><br>
-            <strong>Your stake is on the Old Registry (5009 IQC).</strong><br><br>
+            No contract calls to the Registries found in your recent txs.<br><br>
+            <strong>Your current staked balances:</strong><br>
+            Old Registry: 5009 IQC &nbsp;&nbsp;|&nbsp;&nbsp; V2 (active): 1466 IQC<br><br>
             <a href="https://sepolia.basescan.org/address/0x36f374dbba8fd95b45dfd43ae4eaae3108fff929#tokentxns" target="_blank" style="color:var(--accent);">
-              View your token transfers on Basescan →
-            </a><br><br>
-            <small>
-              If you sent IQC directly to the Registry (not via the "Stake" button), it won't show as a formal stake/unstake event here.
-            </small>
+              View your actual token transfer history on Basescan →
+            </a>
           `;
           return;
         }
