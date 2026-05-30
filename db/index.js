@@ -76,11 +76,23 @@ async function ensureTables() {
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS block_number INTEGER`);
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
 
-    // Fix for ledger_entries (block_timestamp used by commit / genesis creation)
+    // Defensive creation of ledger_entries (critical for hash chain)
     await client.query(`
-      ALTER TABLE ledger_entries 
-      ADD COLUMN IF NOT EXISTS block_timestamp TIMESTAMPTZ
+      CREATE TABLE IF NOT EXISTS ledger_entries (
+        id SERIAL PRIMARY KEY,
+        block_number INTEGER NOT NULL,
+        block_hash TEXT NOT NULL,
+        previous_hash TEXT,
+        merkle_root TEXT,
+        reading_count INTEGER DEFAULT 0,
+        block_timestamp TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
     `);
+
+    // Ensure required columns exist on ledger_entries
+    await client.query(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS block_timestamp TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS merkle_root TEXT`);
   } catch (err) {
     console.warn('ensureTables warning (non-fatal):', err.message);
   } finally {

@@ -137,10 +137,8 @@ router.post('/', async (req, res) => {
     const readingHash = cryptoService.hashReading(readingObj);
     const signature = cryptoService.signHash(readingHash, privateKey);
 
-    // === FAST RELIABLE PATH ===
-    // We deliberately avoid any ledger creation or genesis logic in the hot path.
-    // This prevents blocking submits and schema-related errors (e.g. block_timestamp).
-    // Real ledger blocks + on-chain commits can be done later (manually or via background job).
+    // === FAST RELIABLE PATH (current production mode) ===
+    // Submissions are optimized for reliability. Ledger blocks are created asynchronously in background.
     let reading;
     try {
       reading = await dbReadings.createReading({
@@ -181,10 +179,45 @@ router.post('/', async (req, res) => {
         chainHash: null,
         fingerprint: null,
       },
-      note: 'Reading saved (fast path). A ledger block is being created in the background.',
+      note: 'Reading saved (fast path). A ledger block is being created in the background. You can also call POST /api/readings/:id/commit-ledger to force it manually.',
     });
   } catch (err) {
     console.error('POST /api/readings error:', err);
+    res.status(500).json({ 
+      error: err.message || 'Failed to save reading',
+      code: 'SUBMISSION_FAILED'
+    });
+  }
+});
+
+// POST /api/readings/:id/commit-ledger
+// Manual reconciliation endpoint: Force creation of a ledger block for an existing reading
+// Useful for upgrading old "fast path" readings to proper ledger entries.
+router.post('/:id/commit-ledger', async (req, res) => {
+  try {
+    const readingId = parseInt(req.params.id);
+    const reading = await dbReadings.getReadingById(readingId);
+
+    if (!reading) {
+      return res.status(404).json({ error: 'Reading not found' });
+    }
+
+    if (!reading.reading_hash) {
+      return res.status(400).json({ error: 'Reading has no hash (cannot create ledger block)' });
+    }
+
+    const ledgerEntry = await ledgerService.commitBlock([reading.reading_hash]);
+
+    res.json({
+      success: true,
+      readingId,
+      ledgerBlock: {
+        blockNumber: ledgerEntry.block_number,
+        blockHash: ledgerEntry.block_hash,
+      },
+    });
+  } catch (err) {
+    console.error('POST /api/readings/:id/commit-ledger error:', err);
     res.status(500).json({ error: err.message });
   }
 });
