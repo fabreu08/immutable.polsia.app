@@ -159,13 +159,25 @@ router.post('/', async (req, res) => {
     }
 
     // Background ledger block creation (non-blocking)
-    // This is the short-term architecture: fast reliable saves + best-effort ledger in background.
     setImmediate(async () => {
       try {
-        await ledgerService.commitBlock([readingHash]);
-        console.log(`Background ledger block created for reading ${reading.id}`);
+        const ledgerEntry = await ledgerService.commitBlock([readingHash]);
+        if (ledgerEntry && ledgerEntry.block_number) {
+          await dbReadings.updateReadingLedgerBlock(reading.id, ledgerEntry.block_number);
+          console.log(`[Background] Ledger block #${ledgerEntry.block_number} created + linked for reading ${reading.id}`);
+        }
       } catch (ledgerErr) {
-        console.warn(`Background ledger creation failed for reading ${reading.id}:`, ledgerErr.message);
+        console.error(`[Background][LEDGER_FAILED] reading=${reading.id} error=${ledgerErr.message}`);
+      }
+    });
+
+    // Background QC packet creation (non-blocking)
+    setImmediate(async () => {
+      try {
+        const packet = await qcPacketService.createPacketForReading(reading.id, instrument.id);
+        console.log(`[Background] QC packet #${packet.id} created for reading ${reading.id}`);
+      } catch (qcErr) {
+        console.error(`[Background][QC_PACKET_FAILED] reading=${reading.id} error=${qcErr.message}`);
       }
     });
 

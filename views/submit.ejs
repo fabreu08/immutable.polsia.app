@@ -153,12 +153,14 @@
           </div>
 
           <div class="submit-wrap">
-            <button type="submit" class="btn" id="submitBtn" style="display:flex;align-items:center;justify-content:center" data-track="manual-submit-reading">Sign &amp; Submit to Ledger</button>
+            <button type="submit" class="btn" id="submitBtn" style="display:flex;align-items:center;justify-content:center" data-track="manual-submit-reading">Sign &amp; Submit to Ledger (Full Flow)</button>
 
-          <button type="button" onclick="submitDbOnly(this)" 
-                  style="width:100%; margin-top:8px; padding:10px; background:#0ea5e9; color:white; border:none; border-radius:8px; font-size:0.9rem;">
-            Submit (Fast + Background Ledger)
-          </button>
+            <div style="text-align:center; margin:6px 0; font-size:0.7rem; color:#64748b;">— or —</div>
+
+            <button type="button" onclick="submitDbOnly(this)" 
+                    style="width:100%; padding:10px; background:#0ea5e9; color:white; border:none; border-radius:8px; font-size:0.9rem;">
+              Submit Fast (Recommended - Background Ledger + QC)
+            </button>
             <div class="faucet-banner" id="faucetBanner">
               <div class="faucet-msg">
                 <strong>Low IQC balance</strong> — Request free test tokens to cover gas fees
@@ -337,8 +339,12 @@
           <div class="result-title">✓ Reading saved successfully</div>
           <div class="result-row"><span class="result-label">Reading ID</span><span class="result-value">#${data.reading?.id || 'N/A'}</span></div>
           <div style="margin-top:12px; font-size:0.8rem; color:#666;">
-            Fast save complete. A ledger block is being created in the background. On-chain commit can be triggered later.
+            Fast save complete. Ledger block creation running in background.
           </div>
+          <button onclick="forceLedgerBlock(${data.reading?.id}, this)" 
+                  style="margin-top:10px; padding:6px 12px; font-size:0.8rem; background:#334155; color:white; border:none; border-radius:6px; cursor:pointer;">
+            Force Ledger Block Now
+          </button>
         `;
       } catch (err) {
         result.className = 'result error';
@@ -347,6 +353,30 @@
         if (btnEl) btnEl.disabled = false;
         if (submitBtn) submitBtn.disabled = false;
         if (progress) progress.style.display = 'none';
+      }
+    };
+
+    // Helper to manually trigger ledger block creation for a reading (reconciliation)
+    window.forceLedgerBlock = async function(readingId, buttonEl) {
+      if (!readingId) return;
+      const originalText = buttonEl.textContent;
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Creating...';
+
+      try {
+        const res = await fetch(`/api/readings/${readingId}/commit-ledger`, { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          buttonEl.textContent = `Linked to Block #${data.ledgerBlock.blockNumber}`;
+          buttonEl.style.background = '#166534';
+        } else {
+          buttonEl.textContent = 'Failed - ' + (data.error || 'Unknown error');
+          buttonEl.style.background = '#7f1d1d';
+        }
+      } catch (e) {
+        buttonEl.textContent = 'Error - try again';
+        buttonEl.style.background = '#7f1d1d';
       }
     };
 

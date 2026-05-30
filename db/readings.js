@@ -81,4 +81,28 @@ async function countReadings() {
   return parseInt(rows[0].count);
 }
 
-module.exports = { createReading, createReadingWithMetadata, getReadingById, getReadings, getLatestReading, getNextBlockNumber, countReadings };
+/**
+ * Link a reading to the ledger block it was committed in.
+ * This is critical for proper audit trail after background ledger creation.
+ */
+async function updateReadingLedgerBlock(readingId, blockNumber) {
+  const { rows } = await pool.query(
+    `UPDATE readings 
+     SET ledger_block_number = $2 
+     WHERE id = $1 
+     RETURNING *`,
+    [readingId, blockNumber]
+  );
+  return rows[0] || null;
+}
+
+module.exports = { 
+  createReading, 
+  createReadingWithMetadata, 
+  getReadingById, 
+  getReadings, 
+  getLatestReading, 
+  getNextBlockNumber, 
+  countReadings,
+  updateReadingLedgerBlock 
+};
