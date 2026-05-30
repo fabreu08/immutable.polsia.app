@@ -69,6 +69,12 @@ async function ensureTables() {
       ALTER TABLE instruments 
       ADD COLUMN IF NOT EXISTS key_fingerprint TEXT
     `);
+
+    // Schema drift fixes for readings table (needed for on-chain + hash chain)
+    await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS signing_key_fingerprint TEXT`);
+    await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS previous_hash TEXT`);
+    await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS block_number INTEGER`);
+    await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
   } catch (err) {
     console.warn('ensureTables warning (non-fatal):', err.message);
   } finally {

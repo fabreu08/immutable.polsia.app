@@ -70,6 +70,12 @@ async function runCoreMigrations(client) {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Schema drift fixes for readings (columns added later for on-chain + chain linking)
+  await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS signing_key_fingerprint TEXT`);
+  await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS previous_hash TEXT`);
+  await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS block_number INTEGER`);
+  await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
   await client.query(`
     CREATE TABLE IF NOT EXISTS qc_packets (
       id SERIAL PRIMARY KEY, reading_id INTEGER REFERENCES readings(id), assigned_reviewer_id INTEGER REFERENCES reviewers(id),
