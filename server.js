@@ -91,14 +91,38 @@ app.post('/api/seed', async (req, res) => {
 app.get('/readings', async (req, res) => {
   try {
     const { pool } = require('./db/index');
+    const sensorType = req.query.sensor_type || null;
+
+    let where = '';
+    const params = [];
+    if (sensorType) {
+      where = 'WHERE i.sensor_type = $1';
+      params.push(sensorType);
+    }
+
     const result = await pool.query(`
-      SELECT r.*, i.name as instrument_name, i.sensor_type, i.serial_number
+      SELECT 
+        r.*,
+        i.name as iname,
+        i.serial_number as iserial,
+        COALESCE(qp.status, null) as qc_status
       FROM readings r
       LEFT JOIN instruments i ON r.instrument_id = i.id
+      LEFT JOIN qc_packets qp ON qp.reading_id = r.id
+      ${where}
       ORDER BY r.created_at DESC
       LIMIT 100
-    `);
-    res.render('readings', { readings: result.rows, currentPath: '/readings' });
+    `, params);
+
+    const totalRes = await pool.query('SELECT COUNT(*)::int as total FROM readings');
+    const total = totalRes.rows[0].total;
+
+    res.render('readings', { 
+      readings: result.rows, 
+      total, 
+      sensorType, 
+      currentPath: '/readings' 
+    });
   } catch (err) {
     console.error('Error loading readings:', err);
     res.status(500).send('Error loading readings: ' + err.message);
@@ -108,8 +132,34 @@ app.get('/readings', async (req, res) => {
 app.get('/ledger', async (req, res) => {
   try {
     const { pool } = require('./db/index');
-    const entries = await pool.query('SELECT * FROM ledger_entries ORDER BY block_number DESC');
-    res.render('ledger', { entries: entries.rows, currentPath: '/ledger' });
+
+    const entries = await pool.query(`
+      SELECT *, created_at as block_timestamp 
+      FROM ledger_entries 
+      ORDER BY block_number DESC
+    `);
+
+    const statsRes = await pool.query(`
+      SELECT 
+        COUNT(*)::int as c,
+        COALESCE(SUM(reading_count), 0)::int as tr,
+        COALESCE(MAX(block_number), 0)::int as lb
+      FROM ledger_entries
+    `);
+
+    const stats = statsRes.rows[0];
+
+    // Provide empty on-chain data for now (the on-chain section can be enhanced later)
+    const onChainStats = { count: 0, explorerBase: 'https://sepolia.basescan.org', contract: '' };
+    const onChainAttestations = [];
+
+    res.render('ledger', { 
+      chain: entries.rows, 
+      stats, 
+      onChainStats, 
+      onChainAttestations,
+      currentPath: '/ledger' 
+    });
   } catch (err) {
     console.error('Error loading ledger:', err);
     res.status(500).send('Error loading ledger: ' + err.message);
@@ -119,17 +169,44 @@ app.get('/ledger', async (req, res) => {
 app.get('/review', async (req, res) => {
   try {
     const { pool } = require('./db/index');
+    const selectedStatus = req.query.status || null;
+
+    let where = '';
+    const params = [];
+    if (selectedStatus) {
+      where = 'WHERE qp.status = $1';
+      params.push(selectedStatus);
+    }
+
     const packets = await pool.query(`
-      SELECT qp.*, 
-             r1.name as reading_instrument,
-             r2.name as assigned_reviewer_name
+      SELECT 
+        qp.*,
+        rd.value,
+        rd.unit,
+        rd.sensor_type,
+        i.name as iname,
+        r.name as reviewer_name
       FROM qc_packets qp
       LEFT JOIN readings rd ON qp.reading_id = rd.id
-      LEFT JOIN instruments r1 ON rd.instrument_id = r1.id
-      LEFT JOIN reviewers r2 ON qp.assigned_reviewer_id = r2.id
+      LEFT JOIN instruments i ON rd.instrument_id = i.id
+      LEFT JOIN reviewers r ON qp.assigned_reviewer_id = r.id
+      ${where}
       ORDER BY qp.created_at DESC
+    `, params);
+
+    // Get status counts for the filter tabs
+    const qcStats = await pool.query(`
+      SELECT status, COUNT(*)::int as c 
+      FROM qc_packets 
+      GROUP BY status
     `);
-    res.render('review', { packets: packets.rows, currentPath: '/review' });
+
+    res.render('review', { 
+      packets: packets.rows, 
+      qcStats: qcStats.rows,
+      selectedStatus,
+      currentPath: '/review' 
+    });
   } catch (err) {
     console.error('Error loading review:', err);
     res.status(500).send('Error loading review: ' + err.message);
