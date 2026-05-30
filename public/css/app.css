@@ -690,6 +690,13 @@ body.nav-open { overflow: hidden; }
   }
 }
 
+/* Desktop: put wallet button nicely next to the hamburger */
+@media (min-width: 769px) {
+  .app-nav .nav-inner .wallet-btn {
+    margin-right: 6px;
+  }
+}
+
 /* ============================================
    MOBILE HEADER CLEANUP FOR HAMBURGER (final safety net)
    ============================================ */
@@ -718,4 +725,11 @@ body.nav-open { overflow: hidden; }
   flex-direction: column !important;
   display: flex !important;
   align-items: stretch !important;
+}
+
+/* Desktop: put wallet button nicely next to the hamburger (final) */
+@media (min-width: 769px) {
+  .app-nav .nav-inner .wallet-btn {
+    margin-right: 6px;
+  }
 }
