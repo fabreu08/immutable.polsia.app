@@ -672,3 +672,47 @@ a, button, [role="button"] {
 .nav-hamburger span {
   background: var(--fg, #fff) !important;
 }
+
+/* ============================================
+   MOBILE HEADER CLEANUP FOR HAMBURGER
+   ============================================ */
+@media (max-width: 768px) {
+  /* Give the hamburger breathing room on the right */
+  .app-nav .nav-hamburger {
+    margin-left: auto !important;
+  }
+
+  /* Shrink the "Manual Data Entry" button on mobile so hamburger fits */
+  .app-nav .nav-cta {
+    font-size: 0.7rem !important;
+    padding: 6px 10px !important;
+    white-space: nowrap;
+  }
+
+  /* Make wallet button more compact on mobile */
+  .app-nav .nav-actions .wallet-btn {
+    font-size: 0.65rem !important;
+    padding: 4px 8px !important;
+  }
+}
+
+/* ============================================
+   MOBILE HEADER CLEANUP FOR HAMBURGER (final safety net)
+   ============================================ */
+@media (max-width: 768px) {
+  .app-nav .nav-hamburger {
+    margin-left: auto !important;
+    display: flex !important;
+  }
+
+  .app-nav .nav-cta {
+    font-size: 0.7rem !important;
+    padding: 6px 10px !important;
+    white-space: nowrap;
+  }
+
+  .app-nav .nav-actions .wallet-btn {
+    font-size: 0.65rem !important;
+    padding: 4px 8px !important;
+  }
+}
