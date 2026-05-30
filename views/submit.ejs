@@ -381,11 +381,18 @@
         if (stateAfter.connected && stateAfter.isIqcChain) {
           btn.textContent = 'Checking stake...';
 
-          // === Staking UX: Check before attempting commit ===
+          // === Staking UX: Check V2 balance (user is actively using V2) ===
           let stakedBalance = '0';
           try {
-            stakedBalance = await IQC_WALLET.getStakedBalance() || '0';
-          } catch (e) {}
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const registry = new ethers.Contract('0x80c00E40DF46E36652319662929a49bCaeBE52A3', [
+              'function getStakedBalance(address) view returns (uint256)'
+            ], provider);
+            const bal = await registry.getStakedBalance(await (await provider.getSigner()).getAddress());
+            stakedBalance = ethers.formatUnits(bal, 18);
+          } catch (e) {
+            console.warn('Could not read V2 staked balance', e);
+          }
 
           const stakedNum = parseFloat(stakedBalance);
           if (stakedNum < 1) {
@@ -409,20 +416,36 @@
 
           btn.textContent = 'Committing on-chain…';
 
+          // Force on-chain commit to V2 (where user is actively staking)
+          const V2_REGISTRY = '0x80c00E40DF46E36652319662929a49bCaeBE52A3';
+          const TOKEN_ADDR = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C';
+
           try {
-            const attResult = await IQC_WALLET.submitOnChainAttestation(
-              data.qcPacket.id,
-              data.reading.reading_hash,
-              data.instrumentId
-            );
-            const explorerUrl = `https://sepolia.basescan.org/tx/${attResult.attestation.tx_hash}`;
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+
+            const registry = new ethers.Contract(V2_REGISTRY, [
+              'function commitQCPacket(string instrumentId, string dataHash) external',
+              'function getStakedBalance(address) view returns (uint256)'
+            ], signer);
+
+            // Double-check stake on V2 before sending
+            const currentStaked = await registry.getStakedBalance(await signer.getAddress());
+            if (currentStaked < ethers.parseUnits('1', 18)) {
+              throw new Error('Insufficient stake on V2 Registry. Please stake more on the /staking page first.');
+            }
+
+            const tx = await registry.commitQCPacket(data.instrumentId, data.reading.reading_hash);
+            const receipt = await tx.wait();
+
+            const explorerUrl = `https://sepolia.basescan.org/tx/${tx.hash}`;
             attestationHtml = `
-              <div class="result-row"><span class="result-label">On-Chain TX</span><span class="result-value"><a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--accent);">${attResult.attestation.tx_hash.substring(0, 20)}… ↗</a></span></div>
-              <div class="result-row"><span class="result-label">Attestor</span><span class="result-value">${IQC_WALLET.shortAddress(attResult.attestation.wallet_address)}</span></div>
+              <div class="result-row"><span class="result-label">On-Chain TX (V2)</span><span class="result-value"><a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--accent);">${tx.hash.substring(0, 20)}… ↗</a></span></div>
+              <div class="result-row"><span class="result-label">Attestor</span><span class="result-value">${(await signer.getAddress()).slice(0,6)}...${(await signer.getAddress()).slice(-4)}</span></div>
               <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrumentId}</span></div>`;
           } catch (attErr) {
-            console.warn('[submit] On-chain commit failed:', attErr.message);
-            attestationHtml = `<div class="result-row"><span class="result-label">On-Chain</span><span class="result-value" style="color:#F59E0B;">⚠ Commit failed: ${attErr.message}</span></div>`;
+            console.warn('[submit] On-chain commit to V2 failed:', attErr.message);
+            attestationHtml = `<div class="result-row"><span class="result-label">On-Chain (V2)</span><span class="result-value" style="color:#F59E0B;">⚠ Commit failed: ${attErr.message}</span></div>`;
           }
         }
 
