@@ -382,64 +382,89 @@
         return;
       }
 
-      container.innerHTML = 'Loading history from both Registries...';
+      container.innerHTML = 'Loading staking history... (this can take a few seconds)';
 
-      try {
-        const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
-        const latestBlock = await provider.getBlockNumber();
-        const fromBlock = Math.max(0, latestBlock - 100000); // last ~100k blocks to avoid RPC limits
+      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+      const latestBlock = await provider.getBlockNumber();
 
-        const registryABI = [
-          'event Staked(address indexed user, uint256 amount)',
-          'event Unstaked(address indexed user, uint256 amount)'
-        ];
+      // Start conservative and expand if successful
+      let ranges = [25000, 50000, 100000]; // try increasing ranges
+      let allEvents = [];
 
-        const oldRegistry = new ethers.Contract(OLD_REGISTRY, registryABI, provider);
-        const v2Registry = new ethers.Contract(REGISTRY_V2, registryABI, provider);
+      const registryABI = [
+        'event Staked(address indexed user, uint256 amount)',
+        'event Unstaked(address indexed user, uint256 amount)'
+      ];
 
-        const [oldStaked, oldUnstaked, v2Staked, v2Unstaked] = await Promise.all([
-          oldRegistry.queryFilter(oldRegistry.filters.Staked(state.address), fromBlock, latestBlock),
-          oldRegistry.queryFilter(oldRegistry.filters.Unstaked(state.address), fromBlock, latestBlock),
-          v2Registry.queryFilter(v2Registry.filters.Staked(state.address), fromBlock, latestBlock),
-          v2Registry.queryFilter(v2Registry.filters.Unstaked(state.address), fromBlock, latestBlock)
-        ]);
+      const oldRegistry = new ethers.Contract(OLD_REGISTRY, registryABI, provider);
+      const v2Registry = new ethers.Contract(REGISTRY_V2, registryABI, provider);
 
-        const allEvents = [
-          ...oldStaked.map(e => ({ type: 'STAKE', registry: 'Old', ...e })),
-          ...oldUnstaked.map(e => ({ type: 'UNSTAKE', registry: 'Old', ...e })),
-          ...v2Staked.map(e => ({ type: 'STAKE', registry: 'V2', ...e })),
-          ...v2Unstaked.map(e => ({ type: 'UNSTAKE', registry: 'V2', ...e }))
-        ].sort((a, b) => b.blockNumber - a.blockNumber);
+      for (const range of ranges) {
+        const fromBlock = Math.max(0, latestBlock - range);
 
-        if (allEvents.length === 0) {
-          container.innerHTML = 'No staking/unstaking transactions found for this address in the recent blocks.';
-          return;
+        try {
+          // Fetch sequentially to be nicer to the free RPC
+          const oldStaked = await safeQuery(oldRegistry, 'Staked', state.address, fromBlock, latestBlock);
+          const oldUnstaked = await safeQuery(oldRegistry, 'Unstaked', state.address, fromBlock, latestBlock);
+          const v2Staked = await safeQuery(v2Registry, 'Staked', state.address, fromBlock, latestBlock);
+          const v2Unstaked = await safeQuery(v2Registry, 'Unstaked', state.address, fromBlock, latestBlock);
+
+          const events = [
+            ...oldStaked.map(e => ({ type: 'STAKE', registry: 'Old', ...e })),
+            ...oldUnstaked.map(e => ({ type: 'UNSTAKE', registry: 'Old', ...e })),
+            ...v2Staked.map(e => ({ type: 'STAKE', registry: 'V2', ...e })),
+            ...v2Unstaked.map(e => ({ type: 'UNSTAKE', registry: 'V2', ...e }))
+          ];
+
+          allEvents = events.sort((a, b) => b.blockNumber - a.blockNumber);
+          break; // success, stop trying larger ranges
+        } catch (err) {
+          console.warn(`History query failed at ${range} blocks:`, err.message);
+          if (range === ranges[ranges.length - 1]) {
+            // Last attempt failed
+            container.innerHTML = `
+              <span style="color:#EF4444">Could not load full history (public RPC limits).</span><br>
+              <small>Try connecting a wallet with an Alchemy/Infura key for complete history.</small><br>
+              <button onclick="loadStakingHistory()" style="margin-top:8px; font-size:0.75rem;">Try again</button>
+            `;
+            return;
+          }
+          // otherwise try the next larger range (unlikely to help, but we have the loop)
         }
+      }
 
-        let html = '';
-        for (const event of allEvents.slice(0, 15)) {
-          const amount = ethers.formatUnits(event.args.amount, 18);
-          const action = event.type === 'STAKE' ? 'Staked' : 'Unstaked';
-          const color = event.type === 'STAKE' ? '#10B981' : '#EF4444';
-          const txUrl = `https://sepolia.basescan.org/tx/${event.transactionHash}`;
-          const regLabel = event.registry === 'V2' ? 'V2 (current)' : 'Old Registry';
+      if (allEvents.length === 0) {
+        container.innerHTML = 'No staking or unstaking transactions found in the recent blocks.';
+        return;
+      }
 
-          html += `
-            <div style="margin-bottom:10px; padding:8px 0; border-bottom:1px solid #222;">
-              <span style="color:${color}; font-weight:600;">${action}</span> 
-              <strong>${parseFloat(amount).toFixed(2)} IQC</strong> 
-              <span style="font-size:0.7rem; background:#222; padding:1px 6px; border-radius:3px;">${regLabel}</span><br>
-              <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.72rem;">${event.transactionHash.slice(0,10)}...</a>
-            </div>
-          `;
-        }
-        container.innerHTML = html;
-      } catch (e) {
-        console.error('History load error:', e);
-        container.innerHTML = `
-          <span style="color:#EF4444">Failed to load history (RPC limit or network issue).</span><br>
-          <button onclick="loadStakingHistory()" style="margin-top:8px; font-size:0.75rem;">Try again</button>
+      let html = '';
+      for (const event of allEvents.slice(0, 20)) {
+        const amount = ethers.formatUnits(event.args.amount, 18);
+        const action = event.type === 'STAKE' ? 'Staked' : 'Unstaked';
+        const color = event.type === 'STAKE' ? '#10B981' : '#EF4444';
+        const txUrl = `https://sepolia.basescan.org/tx/${event.transactionHash}`;
+        const regLabel = event.registry === 'V2' ? 'V2' : 'Old';
+
+        html += `
+          <div style="margin-bottom:8px; padding:6px 0; border-bottom:1px solid #222;">
+            <span style="color:${color}; font-weight:600;">${action}</span> 
+            <strong>${parseFloat(amount).toFixed(2)} IQC</strong>
+            <span style="font-size:0.65rem; background:#222; padding:0 4px; border-radius:2px;">${regLabel}</span><br>
+            <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.7rem;">${event.transactionHash.slice(0,10)}...</a>
+          </div>
         `;
+      }
+
+      container.innerHTML = html;
+    }
+
+    async function safeQuery(contract, eventName, address, fromBlock, toBlock) {
+      try {
+        return await contract.queryFilter(contract.filters[eventName](address), fromBlock, toBlock);
+      } catch (e) {
+        console.warn(`Failed to fetch ${eventName} events:`, e.message);
+        return [];
       }
     }
 
