@@ -63,6 +63,12 @@ async function ensureTables() {
       ALTER TABLE qc_packets 
       ADD COLUMN IF NOT EXISTS assigned_reviewer_id INTEGER REFERENCES reviewers(id)
     `);
+
+    // Ensure instruments has key_fingerprint (required by seed + signing)
+    await client.query(`
+      ALTER TABLE instruments 
+      ADD COLUMN IF NOT EXISTS key_fingerprint TEXT
+    `);
   } catch (err) {
     console.warn('ensureTables warning (non-fatal):', err.message);
   } finally {

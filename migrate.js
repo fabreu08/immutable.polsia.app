@@ -56,6 +56,12 @@ async function runCoreMigrations(client) {
       serial_number VARCHAR(100), location VARCHAR(255), active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Ensure key_fingerprint column exists (added later for instrument signing)
+  await client.query(`
+    ALTER TABLE instruments 
+    ADD COLUMN IF NOT EXISTS key_fingerprint TEXT
+  `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS readings (
       id SERIAL PRIMARY KEY, instrument_id INTEGER REFERENCES instruments(id),
