@@ -123,6 +123,10 @@
         <span style="font-size:0.75rem; font-weight:400;">(This is where your 1466 IQC is currently staked)</span>
       </div>
 
+      <div id="submitProgress" style="display:none; background:#f0f9ff; border:1px solid #0ea5e9; padding:10px 14px; border-radius:6px; margin-bottom:16px; font-size:0.85rem; color:#0369a1;">
+        <!-- Dynamic progress messages will appear here -->
+      </div>
+
       <div class="form-card">
         <form id="readingForm">
           <div class="form-group">
@@ -351,6 +355,14 @@
         }
       }
 
+      const progress = document.getElementById('submitProgress');
+      const showProgress = (msg) => {
+        if (progress) {
+          progress.style.display = 'block';
+          progress.innerHTML = msg;
+        }
+      };
+
       try {
         const fd = new FormData(e.target);
         const payload = {
@@ -362,7 +374,9 @@
         };
 
         // === REAL SUBMISSION: Create actual reading + QC packet ===
+        showProgress('Step 1/3: Saving reading to database...');
         btn.textContent = 'Saving reading...';
+
         const readingRes = await fetch('/api/readings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -380,6 +394,8 @@
           reading: realData.reading,
           instrumentId: payload.instrumentSerial,
         };
+
+        showProgress('Step 2/3: Reading saved to DB successfully. Now checking on-chain...');
 
         // Step 3: Trigger on-chain commitment via the real IQCRegistry
         const stateAfter = IQC_WALLET.getState();
@@ -420,11 +436,11 @@
             return;
           }
 
+          showProgress('Step 3/3: Checking V2 stake and committing on-chain...');
           btn.textContent = 'Committing on-chain…';
 
           // Force on-chain commit to V2 (where user is actively staking)
           const V2_REGISTRY = '0x80c00E40DF46E36652319662929a49bCaeBE52A3';
-          const TOKEN_ADDR = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C';
 
           try {
             const provider = new ethers.BrowserProvider(window.ethereum);
@@ -441,6 +457,8 @@
               throw new Error('Insufficient stake on V2 Registry. Please stake more on the /staking page first.');
             }
 
+            showProgress('Step 3/3: Stake OK on V2. Sending commitQCPacket transaction...');
+
             const tx = await registry.commitQCPacket(data.instrumentId, data.reading.reading_hash);
             const receipt = await tx.wait();
 
@@ -449,16 +467,18 @@
               <div class="result-row"><span class="result-label">On-Chain TX (V2)</span><span class="result-value"><a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--accent);">${tx.hash.substring(0, 20)}… ↗</a></span></div>
               <div class="result-row"><span class="result-label">Attestor</span><span class="result-value">${(await signer.getAddress()).slice(0,6)}...${(await signer.getAddress()).slice(-4)}</span></div>
               <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrumentId}</span></div>`;
+
+            showProgress('✅ Everything done! DB saved + on-chain committed.');
           } catch (attErr) {
             console.warn('[submit] On-chain commit to V2 failed:', attErr.message);
-            // Make the on-chain failure very loud
+            // Make the on-chain failure very loud and separate
             result.className = 'result error';
             result.innerHTML = `
-              <div class="result-title">✓ Data saved to ledger (DB)</div>
+              <div class="result-title">✓ Data saved to ledger (DB only)</div>
               <div style="margin:12px 0; padding:12px; background:#fee2e2; border:2px solid #dc2626; border-radius:6px; color:#991b1b;">
                 <strong>⚠ On-chain commit to V2 failed</strong><br>
                 ${attErr.message}<br><br>
-                <small>You can try again later from the Staking page or after increasing your V2 stake.</small>
+                <small>The reading is safely recorded in the database. You can retry the on-chain part later from the Staking page once you have enough stake on V2.</small>
               </div>
             `;
             btn.disabled = false;
