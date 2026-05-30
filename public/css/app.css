@@ -537,7 +537,7 @@ a, button, [role="button"] {
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
-  padding: 72px 16px 24px;
+  padding: 56px 16px 24px;   /* Reduced top padding so first item (Dashboard) isn't pushed down too far */
   background: var(--bg);
   border-left: 1px solid var(--border-strong);
   box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
@@ -732,4 +732,9 @@ body.nav-open { overflow: hidden; }
   .app-nav .nav-inner .wallet-btn {
     margin-right: 6px;
   }
+}
+
+/* Fix: reduce top padding of hamburger drawer so first item isn't pushed too low */
+.app-nav .nav-links {
+  padding-top: 56px !important;
 }
