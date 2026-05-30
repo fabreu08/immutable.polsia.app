@@ -1,13 +1,14 @@
 /**
  * services/iqc-contract.js — On-chain queries for IQC Alpha on Base Sepolia.
- * Now points at the real deployed IQCRegistry (staking + commit model).
- * Used primarily by the /ledger page to show real QCPacketCommitted events.
+ * Points at V2 Registry (0x80c00E...) where real user stake lives.
+ * Used by /ledger page and other server-side on-chain reads.
  */
 
 const { ethers } = require('ethers');
 
 // Real deployed contracts from iqc-alpha
-const IQC_REGISTRY = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
+// IMPORTANT: Using V2 Registry (with unstake support) where user stake actually lives
+const IQC_REGISTRY = '0x80c00E40DF46E36652319662929a49bCaeBE52A3'; // V2
 const IQC_TOKEN = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C';
 const BASE_SEPOLIA_RPC = 'https://sepolia.base.org';
 const BASE_SEPOLIA_CHAIN_ID = 84532;
