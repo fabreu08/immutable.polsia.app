@@ -103,8 +103,15 @@ async function runCoreMigrations(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS ledger_entries (
       id SERIAL PRIMARY KEY, block_hash TEXT NOT NULL, previous_hash TEXT, merkle_root TEXT,
-      reading_count INTEGER DEFAULT 0, block_number INTEGER, created_at TIMESTAMPTZ DEFAULT NOW()
+      reading_count INTEGER DEFAULT 0, block_number INTEGER, created_at TIMESTAMPTZ DEFAULT NOW(),
+      block_timestamp TIMESTAMPTZ
     )
+  `);
+
+  // Add missing block_timestamp column (used by ledger service for block time)
+  await client.query(`
+    ALTER TABLE ledger_entries 
+    ADD COLUMN IF NOT EXISTS block_timestamp TIMESTAMPTZ
   `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS wallet_attestations (

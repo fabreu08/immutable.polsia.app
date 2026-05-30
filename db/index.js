@@ -75,6 +75,12 @@ async function ensureTables() {
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS previous_hash TEXT`);
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS block_number INTEGER`);
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
+
+    // Fix for ledger_entries (block_timestamp used by commit / genesis creation)
+    await client.query(`
+      ALTER TABLE ledger_entries 
+      ADD COLUMN IF NOT EXISTS block_timestamp TIMESTAMPTZ
+    `);
   } catch (err) {
     console.warn('ensureTables warning (non-fatal):', err.message);
   } finally {
