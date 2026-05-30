@@ -658,6 +658,16 @@ body.nav-open { overflow: hidden; }
 }
 
 /* ============================================
+   FORCE HAMBURGER DRAWER TO BE VERTICAL
+   (Fix for desktop + any screen size)
+   ============================================ */
+.app-nav .nav-links.open {
+  flex-direction: column !important;
+  display: flex !important;
+  align-items: stretch !important;
+}
+
+/* ============================================
    MOBILE HEADER CLEANUP FOR HAMBURGER
    ============================================ */
 @media (max-width: 768px) {
@@ -699,4 +709,13 @@ body.nav-open { overflow: hidden; }
     font-size: 0.65rem !important;
     padding: 4px 8px !important;
   }
+}
+
+/* ============================================
+   FORCE HAMBURGER DRAWER TO BE VERTICAL (final override)
+   ============================================ */
+.app-nav .nav-links.open {
+  flex-direction: column !important;
+  display: flex !important;
+  align-items: stretch !important;
 }
