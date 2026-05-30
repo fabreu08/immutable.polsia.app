@@ -86,6 +86,60 @@ app.post('/api/seed', async (req, res) => {
   }
 });
 
+// --- Page routes ---
+
+app.get('/readings', async (req, res) => {
+  try {
+    const { pool } = require('./db/index');
+    const result = await pool.query(`
+      SELECT r.*, i.name as instrument_name, i.sensor_type, i.serial_number
+      FROM readings r
+      LEFT JOIN instruments i ON r.instrument_id = i.id
+      ORDER BY r.created_at DESC
+      LIMIT 100
+    `);
+    res.render('readings', { readings: result.rows, currentPath: '/readings' });
+  } catch (err) {
+    console.error('Error loading readings:', err);
+    res.status(500).send('Error loading readings: ' + err.message);
+  }
+});
+
+app.get('/ledger', async (req, res) => {
+  try {
+    const { pool } = require('./db/index');
+    const entries = await pool.query('SELECT * FROM ledger_entries ORDER BY block_number DESC');
+    res.render('ledger', { entries: entries.rows, currentPath: '/ledger' });
+  } catch (err) {
+    console.error('Error loading ledger:', err);
+    res.status(500).send('Error loading ledger: ' + err.message);
+  }
+});
+
+app.get('/review', async (req, res) => {
+  try {
+    const { pool } = require('./db/index');
+    const packets = await pool.query(`
+      SELECT qp.*, 
+             r1.name as reading_instrument,
+             r2.name as assigned_reviewer_name
+      FROM qc_packets qp
+      LEFT JOIN readings rd ON qp.reading_id = rd.id
+      LEFT JOIN instruments r1 ON rd.instrument_id = r1.id
+      LEFT JOIN reviewers r2 ON qp.assigned_reviewer_id = r2.id
+      ORDER BY qp.created_at DESC
+    `);
+    res.render('review', { packets: packets.rows, currentPath: '/review' });
+  } catch (err) {
+    console.error('Error loading review:', err);
+    res.status(500).send('Error loading review: ' + err.message);
+  }
+});
+
+app.get('/submit', (req, res) => {
+  res.render('submit', { currentPath: '/submit' });
+});
+
 // --- Dashboard pages ---
 
 app.get('/dashboard', async (_req, res) => {
