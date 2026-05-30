@@ -99,6 +99,22 @@
       </div>
     </div>
 
+    <% if (instrumentCount == 0 || reviewerCount == 0) { %>
+    <div style="background:#fef3c7; border:2px solid #f59e0b; padding:20px; border-radius:12px; margin: 20px 0; text-align:center;">
+      <div style="font-weight:600; font-size:1.1rem; margin-bottom:8px; color:#92400e;">
+        Demo data not seeded
+      </div>
+      <p style="margin-bottom:16px; color:#92400e;">
+        No instruments or reviewers found. Seed demo data to start submitting readings.
+      </p>
+      <button onclick="seedDemoData(this)" 
+              style="background:#f59e0b; color:white; padding:12px 28px; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:0.95rem;">
+        Seed Demo Data Now
+      </button>
+      <div id="seedStatus" style="margin-top:12px; font-size:0.85rem; color:#92400e;"></div>
+    </div>
+    <% } %>
+
     <div class="section">
       <div class="section-title">QC Packet Status</div>
       <div class="qc-summary">
@@ -135,6 +151,26 @@
       }
     }
   });
+
+  async function seedDemoData(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Seeding...';
+    const status = document.getElementById('seedStatus');
+    if (status) status.textContent = '';
+
+    try {
+      const res = await fetch('/api/seed', { method: 'POST' });
+      if (!res.ok) throw new Error('Seed failed');
+
+      if (status) status.textContent = 'Demo data seeded successfully!';
+      setTimeout(() => location.reload(), 800);
+    } catch (e) {
+      if (status) status.textContent = 'Failed to seed. Check console.';
+      console.error(e);
+      btn.disabled = false;
+      btn.textContent = 'Seed Demo Data Now';
+    }
+  }
 </script>
 </body>
 </html>
