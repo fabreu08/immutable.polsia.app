@@ -148,9 +148,24 @@ router.post('/', async (req, res) => {
     // Chain hash
     const chainHash = cryptoService.chainHash(previousHash, readingHash, nextBlock);
 
-    // Create reading - with defensive fallback if advanced chain logic fails
+    // === FAST PATH: Create reading as quickly as possible ===
     let reading;
+    let chainInfo = {
+      readingHash,
+      signature,
+      blockNumber: 0,
+      chainHash: null,
+      fingerprint,
+    };
+
     try {
+      // Try full chain logic first
+      const latestEntry = await dbLedger.getLatestLedgerEntry();
+      const genesisBlock = await ledgerService.getOrCreateGenesisBlock();
+      const previousHash = latestEntry ? latestEntry.block_hash : GENESIS_HASH;
+      const nextBlock = latestEntry ? latestEntry.block_number + 1 : 1;
+      const chainHash = cryptoService.chainHash(previousHash, readingHash, nextBlock);
+
       reading = await dbReadings.createReading({
         instrumentId: instrument.id,
         sensorType,
@@ -163,10 +178,18 @@ router.post('/', async (req, res) => {
         blockNumber: nextBlock,
         readingHash,
       });
-    } catch (createErr) {
-      console.error('Primary createReading failed, attempting basic insert:', createErr.message);
-      // Fallback: create a minimal reading so the user isn't completely blocked
-      const basicReading = await dbReadings.createReading({
+
+      chainInfo = {
+        readingHash,
+        signature,
+        blockNumber: nextBlock,
+        chainHash,
+        fingerprint,
+      };
+    } catch (chainErr) {
+      console.warn('Full chain logic failed, creating minimal reading:', chainErr.message);
+      // Fallback to minimal reading so user isn't blocked
+      reading = await dbReadings.createReading({
         instrumentId: instrument.id,
         sensorType,
         value: parseFloat(value),
@@ -178,29 +201,25 @@ router.post('/', async (req, res) => {
         blockNumber: 0,
         readingHash,
       });
-      reading = basicReading;
-      console.warn('Created reading with fallback (limited chain data)');
     }
 
-    // Auto-create QC packet (non-blocking if it fails)
-    let qcPacket = null;
-    try {
-      qcPacket = await qcPacketService.createPacketForReading(reading.id, instrument.id);
-    } catch (qcErr) {
-      console.error('Failed to auto-create QC packet:', qcErr.message);
-      // Continue anyway — the reading itself is valuable
-    }
+    // Auto-create QC packet in background (non-blocking)
+    let qcPacket = { id: null, status: 'pending_creation' };
+    setImmediate(async () => {
+      try {
+        const packet = await qcPacketService.createPacketForReading(reading.id, instrument.id);
+        // Optionally update the record later if needed
+        console.log(`QC packet ${packet.id} created for reading ${reading.id}`);
+      } catch (qcErr) {
+        console.error('Background QC packet creation failed:', qcErr.message);
+      }
+    });
 
+    // Return immediately so the UI isn't stuck
     res.status(201).json({
       reading,
-      qcPacket: qcPacket || { id: null, status: 'created_without_packet' },
-      verification: {
-        readingHash,
-        signature,
-        blockNumber: nextBlock,
-        chainHash,
-        fingerprint,
-      },
+      qcPacket,
+      verification: chainInfo,
     });
   } catch (err) {
     console.error('POST /api/readings error:', err);

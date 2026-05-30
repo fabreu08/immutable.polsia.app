@@ -405,12 +405,12 @@
 
         const realData = await readingRes.json();
         const data = {
-          qcPacket: realData.qcPacket,
+          qcPacket: realData.qcPacket || { id: null, status: 'created' },
           reading: realData.reading,
           instrumentId: payload.instrumentSerial,
         };
 
-        showProgress('Step 2/3: Reading saved to DB successfully. Now checking on-chain...');
+        showProgress('Step 2/3: Reading saved to DB successfully. Now attempting on-chain...');
 
         // Step 3: Trigger on-chain commitment via the real IQCRegistry
         const stateAfter = IQC_WALLET.getState();
