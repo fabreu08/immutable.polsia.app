@@ -635,3 +635,40 @@ a, button, [role="button"] {
     gap: 12px;
   }
 }
+
+/* ============================================
+   HAMBURGER MENU — FINAL OVERRIDE (force correct behavior)
+   This ensures the hamburger button actually appears on mobile
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Force the hamburger button to be visible on mobile */
+  .nav-hamburger,
+  nav .nav-hamburger,
+  .app-nav .nav-hamburger {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Make sure the new drawer styles win */
+  .app-nav .nav-links {
+    display: none;
+  }
+
+  .app-nav .nav-links.open {
+    display: flex !important;
+  }
+}
+
+/* Explicitly hide on desktop */
+@media (min-width: 769px) {
+  .nav-hamburger {
+    display: none !important;
+  }
+}
+
+/* Make the three lines of the hamburger visible (in case color is wrong) */
+.nav-hamburger span {
+  background: var(--fg, #fff) !important;
+}
