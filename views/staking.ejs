@@ -434,7 +434,20 @@
       }
 
       if (allEvents.length === 0) {
-        container.innerHTML = 'No staking or unstaking transactions found in the recent blocks.';
+        container.innerHTML = `
+          <div>
+            No <strong>Staked</strong> or <strong>Unstaked</strong> events found for your address in the last ~${Math.round((latestBlock - fromBlock)/1000)}k blocks.
+            <br><br>
+            <small style="color:#888;">
+              Only transactions that actually called the <code>stake()</code> or <code>unstake()</code> functions on the Registry contract will appear here.<br>
+              If you sent IQC tokens directly to the Registry address, they do <strong>not</strong> create these events.
+            </small>
+            <br><br>
+            <button onclick="loadOlderHistory()" style="font-size:0.75rem; padding:6px 12px;">
+              Load much older history (can be slow)
+            </button>
+          </div>
+        `;
         return;
       }
 
@@ -465,6 +478,71 @@
       } catch (e) {
         console.warn(`Failed to fetch ${eventName} events:`, e.message);
         return [];
+      }
+    }
+
+    // Load significantly older history (for users whose activity is old)
+    async function loadOlderHistory() {
+      const container = document.getElementById('historyList');
+      container.innerHTML = 'Loading very old history... this may take 10–30 seconds.';
+
+      try {
+        const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+        const latestBlock = await provider.getBlockNumber();
+        const fromBlock = 0; // full history
+
+        // Reuse the same logic but with full range
+        const registryABI = [
+          'event Staked(address indexed user, uint256 amount)',
+          'event Unstaked(address indexed user, uint256 amount)'
+        ];
+
+        const oldRegistry = new ethers.Contract(OLD_REGISTRY, registryABI, provider);
+        const v2Registry = new ethers.Contract(REGISTRY_V2, registryABI, provider);
+
+        const [oldStaked, oldUnstaked, v2Staked, v2Unstaked] = await Promise.all([
+          safeQuery(oldRegistry, 'Staked', IQC_WALLET.getState().address, fromBlock, latestBlock),
+          safeQuery(oldRegistry, 'Unstaked', IQC_WALLET.getState().address, fromBlock, latestBlock),
+          safeQuery(v2Registry, 'Staked', IQC_WALLET.getState().address, fromBlock, latestBlock),
+          safeQuery(v2Registry, 'Unstaked', IQC_WALLET.getState().address, fromBlock, latestBlock),
+        ]);
+
+        const allEvents = [
+          ...oldStaked.map(e => ({ type: 'STAKE', registry: 'Old', ...e })),
+          ...oldUnstaked.map(e => ({ type: 'UNSTAKE', registry: 'Old', ...e })),
+          ...v2Staked.map(e => ({ type: 'STAKE', registry: 'V2', ...e })),
+          ...v2Unstaked.map(e => ({ type: 'UNSTAKE', registry: 'V2', ...e }))
+        ].sort((a, b) => b.blockNumber - a.blockNumber);
+
+        if (allEvents.length === 0) {
+          container.innerHTML = 'Still no events found. Your activity may not have gone through the official stake/unstake functions.';
+          return;
+        }
+
+        let html = '';
+        for (const event of allEvents) {
+          const amount = ethers.formatUnits(event.args.amount, 18);
+          const action = event.type === 'STAKE' ? 'Staked' : 'Unstaked';
+          const color = event.type === 'STAKE' ? '#10B981' : '#EF4444';
+          const txUrl = `https://sepolia.basescan.org/tx/${event.transactionHash}`;
+          const regLabel = event.registry === 'V2' ? 'V2' : 'Old';
+
+          html += `
+            <div style="margin-bottom:8px; padding:6px 0; border-bottom:1px solid #222;">
+              <span style="color:${color}; font-weight:600;">${action}</span> 
+              <strong>${parseFloat(amount).toFixed(2)} IQC</strong>
+              <span style="font-size:0.65rem; background:#222; padding:0 4px; border-radius:2px;">${regLabel}</span><br>
+              <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.7rem;">${event.transactionHash.slice(0,10)}...</a>
+            </div>
+          `;
+        }
+        container.innerHTML = html;
+      } catch (e) {
+        console.error(e);
+        container.innerHTML = `
+          <span style="color:#EF4444">Still failed to load very old history (RPC limits).</span><br>
+          <small>Best solution: Use an Alchemy or Infura RPC URL with the staking page.</small>
+        `;
       }
     }
 
