@@ -172,6 +172,11 @@
 
           <div class="submit-wrap">
             <button type="submit" class="btn" id="submitBtn" style="display:flex;align-items:center;justify-content:center" data-track="manual-submit-reading">Sign &amp; Submit to Ledger</button>
+
+          <button type="button" onclick="submitDbOnly(this)" 
+                  style="width:100%; margin-top:8px; padding:10px; background:#0ea5e9; color:white; border:none; border-radius:8px; font-size:0.9rem;">
+            DB Only (Fast) — Skip on-chain for now
+          </button>
             <div class="faucet-banner" id="faucetBanner">
               <div class="faucet-msg">
                 <strong>Low IQC balance</strong> — Request free test tokens to cover gas fees
@@ -309,6 +314,60 @@
       });
     });
 
+    // Fast DB-only submit (bypasses on-chain completely for reliability)
+    window.submitDbOnly = async function(btnEl) {
+      const form = document.getElementById('readingForm');
+      const progress = document.getElementById('submitProgress');
+      const result = document.getElementById('result');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (btnEl) btnEl.disabled = true;
+      if (submitBtn) submitBtn.disabled = true;
+      if (progress) {
+        progress.style.display = 'block';
+        progress.innerHTML = 'Saving to database only (fast mode)...';
+      }
+
+      const fd = new FormData(form);
+      const payload = {
+        sensorType: fd.get('sensorType'),
+        value: parseFloat(fd.get('value')),
+        unit: fd.get('sensorType') === 'ph' ? 'pH' : fd.get('sensorType') === 'temperature' ? '°C' : 'counts',
+        instrumentSerial: fd.get('instrumentSerial'),
+        capturedAt: fd.get('capturedAt') || new Date().toISOString(),
+      };
+
+      try {
+        const res = await fetch('/api/readings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to save');
+        }
+
+        const data = await res.json();
+        result.className = 'result success';
+        result.innerHTML = `
+          <div class="result-title">✓ Reading saved to database (DB only)</div>
+          <div class="result-row"><span class="result-label">Reading ID</span><span class="result-value">#${data.reading?.id || 'N/A'}</span></div>
+          <div style="margin-top:12px; font-size:0.8rem; color:#666;">
+            On-chain commit was skipped. You can commit this packet later from the Staking page if desired.
+          </div>
+        `;
+      } catch (err) {
+        result.className = 'result error';
+        result.innerHTML = `<div class="result-title">✗ Error</div><div style="font-size:0.875rem;color:#EF4444;">${err.message}</div>`;
+      } finally {
+        if (btnEl) btnEl.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
+        if (progress) progress.style.display = 'none';
+      }
+    };
+
     // Manual form submission
     document.getElementById('readingForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -379,7 +438,7 @@
 
         // Add timeout so the UI doesn't appear completely stuck
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout
 
         let readingRes;
         try {
@@ -392,7 +451,7 @@
         } catch (fetchErr) {
           clearTimeout(timeoutId);
           if (fetchErr.name === 'AbortError') {
-            throw new Error('Request to save reading timed out (15s). The database might be slow or have schema issues.');
+            throw new Error('Request timed out after 12s. The database may still be processing. Try the "DB Only (Fast)" button below if available.');
           }
           throw fetchErr;
         }
@@ -410,7 +469,7 @@
           instrumentId: payload.instrumentSerial,
         };
 
-        showProgress('Step 2/3: Reading saved to DB successfully. Now attempting on-chain...');
+        showProgress('Step 2/3: Reading saved to DB successfully. ' + (realData.note || ''));
 
         // Step 3: Trigger on-chain commitment via the real IQCRegistry
         const stateAfter = IQC_WALLET.getState();
