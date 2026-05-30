@@ -185,7 +185,8 @@
   <script src="/js/wallet.js"></script>
 
   <script>
-    // V2 Registry (with unstaking support)
+    // Registry addresses
+    const OLD_REGISTRY = '0x35259312d419Fad651a376a737Cb1b5666602E9E';
     const REGISTRY_V2 = '0x80c00E40DF46E36652319662929a49bCaeBE52A3';
     const TOKEN_ADDRESS = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C';
   </script>
@@ -307,23 +308,22 @@
 
       try {
         const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
-        const registry = new ethers.Contract(
-          '0x35259312d419Fad651a376a737Cb1b5666602E9E',
-          ['function getStakedBalance(address) view returns (uint256)'],
-          provider
-        );
 
-        const staked = await registry.getStakedBalance(addr);
-        const formatted = ethers.formatUnits(staked, 18);
+        const [oldStaked, v2Staked] = await Promise.all([
+          new ethers.Contract(OLD_REGISTRY, ['function getStakedBalance(address) view returns (uint256)'], provider).getStakedBalance(addr),
+          new ethers.Contract(REGISTRY_V2, ['function getStakedBalance(address) view returns (uint256)'], provider).getStakedBalance(addr)
+        ]);
+
+        const oldFmt = ethers.formatUnits(oldStaked, 18);
+        const v2Fmt = ethers.formatUnits(v2Staked, 18);
 
         resultEl.innerHTML = `
-          <strong>Real staked balance in contract:</strong><br>
-          <span style="font-size:1.1rem;color:var(--accent);">${parseFloat(formatted).toFixed(2)} IQC</span><br>
-          <small style="color:var(--fg-muted)">This is the amount the contract sees for committing data.</small>
+          <strong>Old Registry:</strong> ${parseFloat(oldFmt).toFixed(2)} IQC<br>
+          <strong>V2 Registry (current):</strong> <span style="color:var(--accent);">${parseFloat(v2Fmt).toFixed(2)} IQC</span>
         `;
       } catch (e) {
         console.error(e);
-        resultEl.innerHTML = '<span style="color:#EF4444">Failed to query. Check the address.</span>';
+        resultEl.innerHTML = '<span style="color:#EF4444">Failed to query. Check the address or try again.</span>';
       }
     }
 
@@ -382,53 +382,64 @@
         return;
       }
 
-      container.innerHTML = 'Loading history from Registry...';
+      container.innerHTML = 'Loading history from both Registries...';
 
       try {
         const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
-        const registry = new ethers.Contract(
-          REGISTRY_V2,
-          [
-            'event Staked(address indexed user, uint256 amount)',
-            'event Unstaked(address indexed user, uint256 amount)'
-          ],
-          provider
-        );
+        const latestBlock = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, latestBlock - 100000); // last ~100k blocks to avoid RPC limits
 
-        const [stakedEvents, unstakedEvents] = await Promise.all([
-          registry.queryFilter(registry.filters.Staked(state.address)),
-          registry.queryFilter(registry.filters.Unstaked(state.address))
+        const registryABI = [
+          'event Staked(address indexed user, uint256 amount)',
+          'event Unstaked(address indexed user, uint256 amount)'
+        ];
+
+        const oldRegistry = new ethers.Contract(OLD_REGISTRY, registryABI, provider);
+        const v2Registry = new ethers.Contract(REGISTRY_V2, registryABI, provider);
+
+        const [oldStaked, oldUnstaked, v2Staked, v2Unstaked] = await Promise.all([
+          oldRegistry.queryFilter(oldRegistry.filters.Staked(state.address), fromBlock, latestBlock),
+          oldRegistry.queryFilter(oldRegistry.filters.Unstaked(state.address), fromBlock, latestBlock),
+          v2Registry.queryFilter(v2Registry.filters.Staked(state.address), fromBlock, latestBlock),
+          v2Registry.queryFilter(v2Registry.filters.Unstaked(state.address), fromBlock, latestBlock)
         ]);
 
         const allEvents = [
-          ...stakedEvents.map(e => ({ type: 'STAKE', ...e })),
-          ...unstakedEvents.map(e => ({ type: 'UNSTAKE', ...e }))
+          ...oldStaked.map(e => ({ type: 'STAKE', registry: 'Old', ...e })),
+          ...oldUnstaked.map(e => ({ type: 'UNSTAKE', registry: 'Old', ...e })),
+          ...v2Staked.map(e => ({ type: 'STAKE', registry: 'V2', ...e })),
+          ...v2Unstaked.map(e => ({ type: 'UNSTAKE', registry: 'V2', ...e }))
         ].sort((a, b) => b.blockNumber - a.blockNumber);
 
         if (allEvents.length === 0) {
-          container.innerHTML = 'No staking/unstaking transactions found for this address on the current Registry.';
+          container.innerHTML = 'No staking/unstaking transactions found for this address in the recent blocks.';
           return;
         }
 
         let html = '';
-        for (const event of allEvents.slice(0, 10)) {
+        for (const event of allEvents.slice(0, 15)) {
           const amount = ethers.formatUnits(event.args.amount, 18);
           const action = event.type === 'STAKE' ? 'Staked' : 'Unstaked';
           const color = event.type === 'STAKE' ? '#10B981' : '#EF4444';
           const txUrl = `https://sepolia.basescan.org/tx/${event.transactionHash}`;
+          const regLabel = event.registry === 'V2' ? 'V2 (current)' : 'Old Registry';
 
           html += `
-            <div style="margin-bottom:8px; padding:6px 0; border-bottom:1px solid #222;">
+            <div style="margin-bottom:10px; padding:8px 0; border-bottom:1px solid #222;">
               <span style="color:${color}; font-weight:600;">${action}</span> 
-              <strong>${parseFloat(amount).toFixed(2)} IQC</strong><br>
-              <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.75rem;">${event.transactionHash.slice(0,12)}...</a>
+              <strong>${parseFloat(amount).toFixed(2)} IQC</strong> 
+              <span style="font-size:0.7rem; background:#222; padding:1px 6px; border-radius:3px;">${regLabel}</span><br>
+              <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.72rem;">${event.transactionHash.slice(0,10)}...</a>
             </div>
           `;
         }
         container.innerHTML = html;
       } catch (e) {
-        console.error(e);
-        container.innerHTML = '<span style="color:#EF4444">Failed to load history. Try refreshing.</span>';
+        console.error('History load error:', e);
+        container.innerHTML = `
+          <span style="color:#EF4444">Failed to load history (RPC limit or network issue).</span><br>
+          <button onclick="loadStakingHistory()" style="margin-top:8px; font-size:0.75rem;">Try again</button>
+        `;
       }
     }
 
