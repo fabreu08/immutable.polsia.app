@@ -160,8 +160,17 @@ router.post('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to save reading: ' + err.message });
     }
 
-    // Note: We no longer call ledgerService.getOrCreateGenesisBlock() here.
-    // It was causing blocking errors and schema issues during normal submits.
+    // Background ledger block creation (non-blocking)
+    // This is the short-term architecture: fast reliable saves + best-effort ledger in background.
+    setImmediate(async () => {
+      try {
+        await ledgerService.commitBlock([readingHash]);
+        console.log(`Background ledger block created for reading ${reading.id}`);
+      } catch (ledgerErr) {
+        console.warn(`Background ledger creation failed for reading ${reading.id}:`, ledgerErr.message);
+      }
+    });
+
     res.status(201).json({
       reading,
       qcPacket: { id: null, status: 'pending' },
@@ -172,7 +181,7 @@ router.post('/', async (req, res) => {
         chainHash: null,
         fingerprint: null,
       },
-      note: 'Reading saved successfully (fast path). Ledger chaining and on-chain commit are currently disabled for reliability and will be re-enabled in a future update.',
+      note: 'Reading saved (fast path). A ledger block is being created in the background.',
     });
   } catch (err) {
     console.error('POST /api/readings error:', err);

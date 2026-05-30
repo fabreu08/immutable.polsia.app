@@ -157,7 +157,7 @@
 
           <button type="button" onclick="submitDbOnly(this)" 
                   style="width:100%; margin-top:8px; padding:10px; background:#0ea5e9; color:white; border:none; border-radius:8px; font-size:0.9rem;">
-            DB Only (Fast) — Skip on-chain for now
+            Submit (Fast + Background Ledger)
           </button>
             <div class="faucet-banner" id="faucetBanner">
               <div class="faucet-msg">
@@ -334,10 +334,10 @@
         const data = await res.json();
         result.className = 'result success';
         result.innerHTML = `
-          <div class="result-title">✓ Reading saved to database (DB only)</div>
+          <div class="result-title">✓ Reading saved successfully</div>
           <div class="result-row"><span class="result-label">Reading ID</span><span class="result-value">#${data.reading?.id || 'N/A'}</span></div>
           <div style="margin-top:12px; font-size:0.8rem; color:#666;">
-            On-chain commit was skipped. You can commit this packet later from the Staking page if desired.
+            Fast save complete. A ledger block is being created in the background. On-chain commit can be triggered later.
           </div>
         `;
       } catch (err) {
