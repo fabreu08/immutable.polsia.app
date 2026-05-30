@@ -377,11 +377,26 @@
         showProgress('Step 1/3: Saving reading to database...');
         btn.textContent = 'Saving reading...';
 
-        const readingRes = await fetch('/api/readings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        // Add timeout so the UI doesn't appear completely stuck
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+        let readingRes;
+        try {
+          readingRes = await fetch('/api/readings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          if (fetchErr.name === 'AbortError') {
+            throw new Error('Request to save reading timed out (15s). The database might be slow or have schema issues.');
+          }
+          throw fetchErr;
+        }
+        clearTimeout(timeoutId);
 
         if (!readingRes.ok) {
           const errData = await readingRes.json().catch(() => ({}));
