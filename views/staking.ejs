@@ -123,6 +123,17 @@
       </div>
 
       <button id="stakeBtn" class="btn-stake" onclick="handleStake()">Stake IQC</button>
+
+      <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
+        <div class="form-group">
+          <label for="unstakeAmount">Amount to Unstake</label>
+          <input type="number" id="unstakeAmount" value="1" step="0.1" min="0.1">
+        </div>
+        <button onclick="handleUnstake()" style="width:100%; padding:14px; background:#EF4444; color:white; border:none; border-radius:10px; font-weight:600;">
+          Unstake IQC
+        </button>
+      </div>
+
       <div id="stakeStatus" style="margin-top:12px; font-size:0.8rem; text-align:center; color:var(--fg-muted);"></div>
     </div>
 
@@ -155,13 +166,29 @@
     </div>
 
     <div style="margin-top:40px; text-align:center; font-size:0.8rem; color:var(--fg-muted);">
-      Registry: <a href="https://sepolia.basescan.org/address/0x35259312d419Fad651a376a737Cb1b5666602E9E" target="_blank" style="color:var(--accent);">0x352593...2E9E</a><br>
+      <strong>Active Registry (V2 - with unstaking):</strong><br>
+      <a href="https://sepolia.basescan.org/address/0x80c00E40DF46E36652319662929a49bCaeBE52A3" target="_blank" style="color:var(--accent);">0x80c00E...52A3</a><br>
       Token: <a href="https://sepolia.basescan.org/address/0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C" target="_blank" style="color:var(--accent);">0x6D3a4f...a4C</a>
+    </div>
+
+    <!-- Transaction History -->
+    <div class="staking-card" style="margin-top: 32px;">
+      <div style="font-weight:600; margin-bottom:16px; font-size:1.1rem;">Your Staking History</div>
+      <button onclick="loadStakingHistory()" style="padding:8px 16px; margin-bottom:12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);">
+        Refresh History
+      </button>
+      <div id="historyList" style="font-family:monospace; font-size:0.85rem; line-height:1.5;"></div>
     </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
   <script src="/js/wallet.js"></script>
+
+  <script>
+    // V2 Registry (with unstaking support)
+    const REGISTRY_V2 = '0x80c00E40DF46E36652319662929a49bCaeBE52A3';
+    const TOKEN_ADDRESS = '0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C';
+  </script>
   <script>
     async function updateBalances() {
       const state = IQC_WALLET.getState();
@@ -207,13 +234,8 @@
       }
 
       const state = IQC_WALLET.getState();
-      if (!state.connected) {
-        status.textContent = 'Please connect your wallet first';
-        status.style.color = '#EF4444';
-        return;
-      }
-      if (!state.isIqcChain) {
-        status.textContent = 'Please switch to Base Sepolia';
+      if (!state.connected || !state.isIqcChain) {
+        status.textContent = 'Please connect your wallet on Base Sepolia';
         status.style.color = '#EF4444';
         return;
       }
@@ -224,14 +246,32 @@
       status.style.color = 'var(--fg-muted)';
 
       try {
-        await IQC_WALLET.stake(amount);
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+
+        const token = new ethers.Contract(TOKEN_ADDRESS, [
+          'function approve(address spender, uint256 amount) returns (bool)'
+        ], signer);
+
+        const registry = new ethers.Contract(REGISTRY_V2, [
+          'function stake(uint256 amount) external'
+        ], signer);
+
+        const amountWei = ethers.parseUnits(amount.toString(), 18);
+
+        // Approve
+        const approveTx = await token.approve(REGISTRY_V2, amountWei);
+        await approveTx.wait();
+
+        // Stake
+        const stakeTx = await registry.stake(amountWei);
+        await stakeTx.wait();
+
         status.textContent = `Successfully staked ${amount} IQC!`;
         status.style.color = 'var(--accent)';
 
-        // Refresh balances
         await updateBalances();
 
-        // Reset button
         setTimeout(() => {
           btn.disabled = false;
           btn.textContent = 'Stake IQC';
@@ -239,7 +279,7 @@
         }, 2500);
       } catch (err) {
         console.error(err);
-        status.textContent = 'Stake failed: ' + (err.message || err);
+        status.textContent = 'Stake failed: ' + (err.reason || err.message);
         status.style.color = '#EF4444';
         btn.disabled = false;
         btn.textContent = 'Stake IQC';
@@ -287,10 +327,114 @@
       }
     }
 
+    async function handleUnstake() {
+      const status = document.getElementById('stakeStatus');
+      const amountInput = document.getElementById('unstakeAmount');
+      const amount = parseFloat(amountInput.value);
+
+      if (!amount || amount <= 0) {
+        status.textContent = 'Please enter a valid amount';
+        status.style.color = '#EF4444';
+        return;
+      }
+
+      const state = IQC_WALLET.getState();
+      if (!state.connected || !state.isIqcChain) {
+        status.textContent = 'Please connect your wallet on Base Sepolia';
+        status.style.color = '#EF4444';
+        return;
+      }
+
+      status.textContent = 'Unstaking... Please confirm in wallet.';
+      status.style.color = 'var(--fg-muted)';
+
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+
+        const registryABI = [
+          'function unstake(uint256 amount) external',
+          'function getStakedBalance(address user) view returns (uint256)'
+        ];
+
+        const registry = new ethers.Contract(REGISTRY_V2, registryABI, signer);
+        const tx = await registry.unstake(ethers.parseUnits(amount.toString(), 18));
+        await tx.wait();
+
+        status.textContent = `Successfully unstaked ${amount} IQC!`;
+        status.style.color = '#10B981';
+
+        await updateBalances();
+        setTimeout(() => { status.textContent = ''; }, 3000);
+      } catch (err) {
+        console.error(err);
+        status.textContent = 'Unstake failed: ' + (err.reason || err.message);
+        status.style.color = '#EF4444';
+      }
+    }
+
+    async function loadStakingHistory() {
+      const state = IQC_WALLET.getState();
+      const container = document.getElementById('historyList');
+
+      if (!state.connected || !state.address) {
+        container.innerHTML = '<span style="color:#EF4444">Connect wallet to view history</span>';
+        return;
+      }
+
+      container.innerHTML = 'Loading history from Registry...';
+
+      try {
+        const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+        const registry = new ethers.Contract(
+          REGISTRY_V2,
+          [
+            'event Staked(address indexed user, uint256 amount)',
+            'event Unstaked(address indexed user, uint256 amount)'
+          ],
+          provider
+        );
+
+        const [stakedEvents, unstakedEvents] = await Promise.all([
+          registry.queryFilter(registry.filters.Staked(state.address)),
+          registry.queryFilter(registry.filters.Unstaked(state.address))
+        ]);
+
+        const allEvents = [
+          ...stakedEvents.map(e => ({ type: 'STAKE', ...e })),
+          ...unstakedEvents.map(e => ({ type: 'UNSTAKE', ...e }))
+        ].sort((a, b) => b.blockNumber - a.blockNumber);
+
+        if (allEvents.length === 0) {
+          container.innerHTML = 'No staking/unstaking transactions found for this address on the current Registry.';
+          return;
+        }
+
+        let html = '';
+        for (const event of allEvents.slice(0, 10)) {
+          const amount = ethers.formatUnits(event.args.amount, 18);
+          const action = event.type === 'STAKE' ? 'Staked' : 'Unstaked';
+          const color = event.type === 'STAKE' ? '#10B981' : '#EF4444';
+          const txUrl = `https://sepolia.basescan.org/tx/${event.transactionHash}`;
+
+          html += `
+            <div style="margin-bottom:8px; padding:6px 0; border-bottom:1px solid #222;">
+              <span style="color:${color}; font-weight:600;">${action}</span> 
+              <strong>${parseFloat(amount).toFixed(2)} IQC</strong><br>
+              <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.75rem;">${event.transactionHash.slice(0,12)}...</a>
+            </div>
+          `;
+        }
+        container.innerHTML = html;
+      } catch (e) {
+        console.error(e);
+        container.innerHTML = '<span style="color:#EF4444">Failed to load history. Try refreshing.</span>';
+      }
+    }
+
     // Initial load
     document.addEventListener('DOMContentLoaded', () => {
       updateBalances();
-      // Try auto-connect if wallet is already authorized
       if (typeof IQC_WALLET !== 'undefined' && IQC_WALLET.isWalletAvailable()) {
         IQC_WALLET.connect().catch(() => {});
       }
