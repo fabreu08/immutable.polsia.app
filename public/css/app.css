@@ -736,10 +736,26 @@ body.nav-open { overflow: hidden; }
 
 /* Fix: reduce top padding of hamburger drawer so first item isn't pushed too low */
 .app-nav .nav-links {
-  padding-top: 48px !important;   /* Adjusted to better align first menu item with wallet button height */
+  padding-top: 36px !important;   /* Moved higher to align top menu item with wallet button */
 }
 
 /* Adjust drawer top padding to align first item (Dashboard) with wallet button */
 .app-nav .nav-links {
   padding-top: 48px !important;
+}
+
+/* Stronger full-height divider for hamburger drawer (fixes /readings and /review pages) */
+.app-nav .nav-links.open {
+  border-left: none !important; /* remove the original to avoid double */
+}
+
+.app-nav .nav-links.open::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-strong);
+  z-index: 1;
 }
