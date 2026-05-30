@@ -127,11 +127,31 @@
     </div>
 
     <div class="info-box">
-      <strong>How staking works</strong><br><br>
-      1. You approve the IQCRegistry contract to spend your IQC tokens.<br>
-      2. You call <code>stake()</code> — your tokens are transferred into the Registry.<br>
-      3. While staked, you can call <code>commitQCPacket()</code> (costs 1 IQC per commit from your stake).<br><br>
-      <strong>Note:</strong> The current Registry version does not have a public unstake function. Staked tokens are used to pay commit fees.
+      <strong>Important: How staking actually works</strong><br><br>
+      <strong>1. Staking must go through the "Stake" button above.</strong><br>
+      Simply sending IQC tokens directly to the Registry contract address <strong>does NOT</strong> increase your staked balance in the contract.<br><br>
+      2. When you use the Stake button:<br>
+      &nbsp;&nbsp;- It calls <code>approve()</code> on the IQC token<br>
+      &nbsp;&nbsp;- Then calls <code>stake()</code> on the Registry<br>
+      &nbsp;&nbsp;- This updates the internal <code>stakedBalance[yourAddress]</code> mapping<br><br>
+      3. Only tokens recorded in that mapping can be used for <code>commitQCPacket</code>.<br><br>
+      <strong>Unstaking:</strong> The currently deployed Registry does <strong>not</strong> have an <code>unstake()</code> function. Your staked tokens are locked until we deploy an upgraded version of the contract that supports unstaking.
+    </div>
+
+    <div class="info-box" style="margin-top: 16px; background: rgba(234,179,8,0.08); border-color: #EAB308;">
+      <strong>Having trouble seeing your stake?</strong><br><br>
+      If you previously sent tokens directly to the Registry address (instead of using the Stake button), they will appear in your token transfer history on Basescan, <strong>but they are not counted</strong> toward your usable stake for committing data.<br><br>
+      Use the "Check any address" tool below to see the <strong>real</strong> amount recorded in the Registry contract.
+    </div>
+
+    <!-- Manual staked balance checker -->
+    <div class="staking-card" style="margin-top: 24px;">
+      <div style="font-weight:600; margin-bottom:12px;">Check real staked balance for any address</div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="checkAddress" placeholder="0x..." value="0x36f374dbba8fd95b45dfd43ae4eaae3108fff929" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border); font-family:monospace;">
+        <button onclick="checkStakedBalance()" style="padding:10px 20px; border-radius:8px; background:var(--accent); color:white; border:none;">Check</button>
+      </div>
+      <div id="checkResult" style="margin-top:12px; font-family:monospace; font-size:0.95rem;"></div>
     </div>
 
     <div style="margin-top:40px; text-align:center; font-size:0.8rem; color:var(--fg-muted);">
@@ -145,9 +165,12 @@
   <script>
     async function updateBalances() {
       const state = IQC_WALLET.getState();
+      const tokenEl = document.getElementById('tokenBalance');
+      const stakedEl = document.getElementById('stakedBalance');
+
       if (!state.connected || !state.isIqcChain) {
-        document.getElementById('tokenBalance').textContent = 'Connect wallet on Base Sepolia';
-        document.getElementById('stakedBalance').textContent = '—';
+        tokenEl.textContent = 'Connect wallet on Base Sepolia';
+        stakedEl.textContent = '—';
         return;
       }
 
@@ -157,10 +180,17 @@
           IQC_WALLET.getStakedBalance()
         ]);
 
-        document.getElementById('tokenBalance').textContent = tokenBal ? parseFloat(tokenBal).toFixed(2) + ' IQC' : '—';
-        document.getElementById('stakedBalance').textContent = stakedBal ? parseFloat(stakedBal).toFixed(2) + ' IQC' : '0 IQC';
+        tokenEl.textContent = tokenBal ? parseFloat(tokenBal).toFixed(2) + ' IQC' : '—';
+        stakedEl.textContent = stakedBal ? parseFloat(stakedBal).toFixed(2) + ' IQC' : '0 IQC';
+
+        // Extra clear warning if they have very low contract stake
+        if (parseFloat(stakedBal || 0) < 1) {
+          document.getElementById('stakedBalanceStatus').textContent = '⚠️ Too low to commit';
+          document.getElementById('stakedBalanceStatus').style.color = '#EAB308';
+        }
       } catch (e) {
         console.error(e);
+        stakedEl.textContent = 'Error querying contract';
       }
     }
 
@@ -221,6 +251,40 @@
       IQC_WALLET.onStateChange(() => {
         updateBalances();
       });
+    }
+
+    // Manual staked balance checker (works without connecting wallet)
+    async function checkStakedBalance() {
+      const addr = document.getElementById('checkAddress').value.trim();
+      const resultEl = document.getElementById('checkResult');
+
+      if (!addr || !addr.startsWith('0x') || addr.length !== 42) {
+        resultEl.innerHTML = '<span style="color:#EF4444">Please enter a valid address</span>';
+        return;
+      }
+
+      resultEl.innerHTML = 'Querying Registry contract...';
+
+      try {
+        const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+        const registry = new ethers.Contract(
+          '0x35259312d419Fad651a376a737Cb1b5666602E9E',
+          ['function getStakedBalance(address) view returns (uint256)'],
+          provider
+        );
+
+        const staked = await registry.getStakedBalance(addr);
+        const formatted = ethers.formatUnits(staked, 18);
+
+        resultEl.innerHTML = `
+          <strong>Real staked balance in contract:</strong><br>
+          <span style="font-size:1.1rem;color:var(--accent);">${parseFloat(formatted).toFixed(2)} IQC</span><br>
+          <small style="color:var(--fg-muted)">This is the amount the contract sees for committing data.</small>
+        `;
+      } catch (e) {
+        console.error(e);
+        resultEl.innerHTML = '<span style="color:#EF4444">Failed to query. Check the address.</span>';
+      }
     }
 
     // Initial load
