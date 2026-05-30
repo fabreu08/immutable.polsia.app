@@ -240,6 +240,10 @@ app.get('/submit', (req, res) => {
   res.render('submit', { currentPath: '/submit' });
 });
 
+app.get('/staking', (req, res) => {
+  res.render('staking', { currentPath: '/staking' });
+});
+
 // --- Dashboard pages ---
 
 app.get('/dashboard', async (_req, res) => {

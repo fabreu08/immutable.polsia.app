@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stake IQC — Immutable QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: var(--bg); color: var(--fg); font-family: var(--font-body); }
+    .page { max-width: 720px; margin: 0 auto; padding: 100px 40px 40px; }
+    .page-title { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
+    .page-sub { color: var(--fg-muted); margin-bottom: 40px; }
+    .staking-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 32px;
+    }
+    .balance-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .balance-row:last-child { border-bottom: none; }
+    .balance-label { font-size: 0.875rem; color: var(--fg-muted); }
+    .balance-value { font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; }
+    .form-group { margin: 24px 0; }
+    label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 8px; color: var(--fg); }
+    input[type="number"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      box-sizing: border-box;
+    }
+    input[type="number"]:focus { outline: none; border-color: var(--accent); }
+    .btn-stake {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    .btn-stake:hover { opacity: 0.9; }
+    .btn-stake:disabled { opacity: 0.5; cursor: not-allowed; }
+    .info-box {
+      background: var(--accent-dim);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      font-size: 0.875rem;
+      color: var(--fg-muted);
+      margin-top: 32px;
+    }
+    .info-box strong { color: var(--fg); }
+    .status { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); }
+    .warning { color: #EAB308; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">IMMUTABLE QC</a>
+      <div class="nav-links">
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+        <a href="/readings" class="nav-link">Readings</a>
+        <a href="/ledger" class="nav-link">Ledger</a>
+        <a href="/review" class="nav-link">Review</a>
+        <a href="/submit" class="nav-link">Submit</a>
+        <a href="/staking" class="nav-link active">Stake</a>
+      </div>
+      <div class="nav-actions">
+        <%- include('partials/wallet-btn') %>
+      </div>
+      <button class="nav-hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open'); this.classList.toggle('open');" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open'); document.querySelector('.nav-hamburger').classList.remove('open');" aria-label="Close menu">✕</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <h1 class="page-title">Stake IQC</h1>
+    <p class="page-sub">Stake tokens to participate as a validator and commit quality control data on-chain.</p>
+
+    <div class="staking-card">
+      <div class="balance-row">
+        <div>
+          <div class="balance-label">Your IQC Balance</div>
+          <div class="balance-value" id="tokenBalance">—</div>
+        </div>
+        <div class="status" id="tokenBalanceStatus"></div>
+      </div>
+
+      <div class="balance-row">
+        <div>
+          <div class="balance-label">Currently Staked</div>
+          <div class="balance-value" id="stakedBalance">—</div>
+        </div>
+        <div class="status" id="stakedBalanceStatus"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="stakeAmount">Amount to Stake</label>
+        <input type="number" id="stakeAmount" value="5" step="0.1" min="0.1">
+        <div class="hint">Minimum 1 IQC required to commit packets. You can stake more for future use.</div>
+      </div>
+
+      <button id="stakeBtn" class="btn-stake" onclick="handleStake()">Stake IQC</button>
+      <div id="stakeStatus" style="margin-top:12px; font-size:0.8rem; text-align:center; color:var(--fg-muted);"></div>
+    </div>
+
+    <div class="info-box">
+      <strong>How staking works</strong><br><br>
+      1. You approve the IQCRegistry contract to spend your IQC tokens.<br>
+      2. You call <code>stake()</code> — your tokens are transferred into the Registry.<br>
+      3. While staked, you can call <code>commitQCPacket()</code> (costs 1 IQC per commit from your stake).<br><br>
+      <strong>Note:</strong> The current Registry version does not have a public unstake function. Staked tokens are used to pay commit fees.
+    </div>
+
+    <div style="margin-top:40px; text-align:center; font-size:0.8rem; color:var(--fg-muted);">
+      Registry: <a href="https://sepolia.basescan.org/address/0x35259312d419Fad651a376a737Cb1b5666602E9E" target="_blank" style="color:var(--accent);">0x352593...2E9E</a><br>
+      Token: <a href="https://sepolia.basescan.org/address/0x6D3a4fb7D139d6bb2F241D7F5842955b9d747a4C" target="_blank" style="color:var(--accent);">0x6D3a4f...a4C</a>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+  <script src="/js/wallet.js"></script>
+  <script>
+    async function updateBalances() {
+      const state = IQC_WALLET.getState();
+      if (!state.connected || !state.isIqcChain) {
+        document.getElementById('tokenBalance').textContent = 'Connect wallet on Base Sepolia';
+        document.getElementById('stakedBalance').textContent = '—';
+        return;
+      }
+
+      try {
+        const [tokenBal, stakedBal] = await Promise.all([
+          IQC_WALLET.getIqcBalance(),
+          IQC_WALLET.getStakedBalance()
+        ]);
+
+        document.getElementById('tokenBalance').textContent = tokenBal ? parseFloat(tokenBal).toFixed(2) + ' IQC' : '—';
+        document.getElementById('stakedBalance').textContent = stakedBal ? parseFloat(stakedBal).toFixed(2) + ' IQC' : '0 IQC';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function handleStake() {
+      const btn = document.getElementById('stakeBtn');
+      const status = document.getElementById('stakeStatus');
+      const amountInput = document.getElementById('stakeAmount');
+      const amount = parseFloat(amountInput.value);
+
+      if (!amount || amount <= 0) {
+        status.textContent = 'Please enter a valid amount';
+        status.style.color = '#EF4444';
+        return;
+      }
+
+      const state = IQC_WALLET.getState();
+      if (!state.connected) {
+        status.textContent = 'Please connect your wallet first';
+        status.style.color = '#EF4444';
+        return;
+      }
+      if (!state.isIqcChain) {
+        status.textContent = 'Please switch to Base Sepolia';
+        status.style.color = '#EF4444';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Staking...';
+      status.textContent = 'Please confirm the two transactions in your wallet (Approve + Stake)';
+      status.style.color = 'var(--fg-muted)';
+
+      try {
+        await IQC_WALLET.stake(amount);
+        status.textContent = `Successfully staked ${amount} IQC!`;
+        status.style.color = 'var(--accent)';
+
+        // Refresh balances
+        await updateBalances();
+
+        // Reset button
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = 'Stake IQC';
+          status.textContent = '';
+        }, 2500);
+      } catch (err) {
+        console.error(err);
+        status.textContent = 'Stake failed: ' + (err.message || err);
+        status.style.color = '#EF4444';
+        btn.disabled = false;
+        btn.textContent = 'Stake IQC';
+      }
+    }
+
+    // Auto-refresh balances when wallet state changes
+    if (typeof IQC_WALLET !== 'undefined') {
+      IQC_WALLET.onStateChange(() => {
+        updateBalances();
+      });
+    }
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateBalances();
+      // Try auto-connect if wallet is already authorized
+      if (typeof IQC_WALLET !== 'undefined' && IQC_WALLET.isWalletAvailable()) {
+        IQC_WALLET.connect().catch(() => {});
+      }
+    });
+  </script>
+</body>
+</html>
