@@ -58,32 +58,23 @@
       }
     });
 
-    // Close when clicking a nav link on mobile (improves UX)
+    // Close when clicking a nav link (improves UX on all screen sizes)
     navLinks.addEventListener('click', function (e) {
-      if (window.innerWidth <= 768 && e.target.closest('a')) {
-        // Small delay so the navigation can start before menu closes
+      if (e.target.closest('a')) {
         setTimeout(() => setOpen(false), 80);
       }
     });
 
-    // Click outside to close (only when open on mobile)
+    // Click outside to close (works on desktop too)
     document.addEventListener('click', function (e) {
-      if (window.innerWidth > 768) return;
       if (!navLinks.classList.contains('open')) return;
       if (navLinks.contains(e.target) || hamburger.contains(e.target)) return;
       setOpen(false);
     });
 
-    // Reset state on desktop resize
-    let resizeTimer;
-    window.addEventListener('resize', function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        if (window.innerWidth > 768 && navLinks.classList.contains('open')) {
-          setOpen(false);
-        }
-      }, 150);
-    });
+    // No longer auto-closing on desktop resize — hamburger works on all screen sizes
+    // let resizeTimer;
+    // window.addEventListener('resize', function () { ... });
 
     // Ensure initial aria state
     hamburger.setAttribute('aria-expanded', navLinks.classList.contains('open') ? 'true' : 'false');
