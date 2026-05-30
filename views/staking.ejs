@@ -382,94 +382,79 @@
         return;
       }
 
-      container.innerHTML = 'Loading staking history... (this can take a few seconds)';
+      const addr = state.address.toLowerCase();
+      container.innerHTML = 'Loading your wallet transaction history from Basescan (best method for older activity)...';
 
-      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
-      const latestBlock = await provider.getBlockNumber();
+      try {
+        // Use Basescan account API - far superior to block scanning for per-wallet history
+        const url = `https://api-sepolia.basescan.org/api?module=account&action=txlist&address=${addr}&startblock=0&endblock=99999999&sort=desc&page=1&offset=100`;
 
-      // Start conservative and expand if successful
-      let ranges = [25000, 50000, 100000]; // try increasing ranges
-      let allEvents = [];
+        const res = await fetch(url);
+        const data = await res.json();
 
-      const registryABI = [
-        'event Staked(address indexed user, uint256 amount)',
-        'event Unstaked(address indexed user, uint256 amount)'
-      ];
-
-      const oldRegistry = new ethers.Contract(OLD_REGISTRY, registryABI, provider);
-      const v2Registry = new ethers.Contract(REGISTRY_V2, registryABI, provider);
-
-      for (const range of ranges) {
-        const fromBlock = Math.max(0, latestBlock - range);
-
-        try {
-          // Fetch sequentially to be nicer to the free RPC
-          const oldStaked = await safeQuery(oldRegistry, 'Staked', state.address, fromBlock, latestBlock);
-          const oldUnstaked = await safeQuery(oldRegistry, 'Unstaked', state.address, fromBlock, latestBlock);
-          const v2Staked = await safeQuery(v2Registry, 'Staked', state.address, fromBlock, latestBlock);
-          const v2Unstaked = await safeQuery(v2Registry, 'Unstaked', state.address, fromBlock, latestBlock);
-
-          const events = [
-            ...oldStaked.map(e => ({ type: 'STAKE', registry: 'Old', ...e })),
-            ...oldUnstaked.map(e => ({ type: 'UNSTAKE', registry: 'Old', ...e })),
-            ...v2Staked.map(e => ({ type: 'STAKE', registry: 'V2', ...e })),
-            ...v2Unstaked.map(e => ({ type: 'UNSTAKE', registry: 'V2', ...e }))
-          ];
-
-          allEvents = events.sort((a, b) => b.blockNumber - a.blockNumber);
-          break; // success, stop trying larger ranges
-        } catch (err) {
-          console.warn(`History query failed at ${range} blocks:`, err.message);
-          if (range === ranges[ranges.length - 1]) {
-            // Last attempt failed
-            container.innerHTML = `
-              <span style="color:#EF4444">Could not load full history (public RPC limits).</span><br>
-              <small>Try connecting a wallet with an Alchemy/Infura key for complete history.</small><br>
-              <button onclick="loadStakingHistory()" style="margin-top:8px; font-size:0.75rem;">Try again</button>
-            `;
-            return;
-          }
-          // otherwise try the next larger range (unlikely to help, but we have the loop)
+        if (data.status !== "1" || !data.result?.length) {
+          container.innerHTML = 'No transactions found for this address on Basescan.';
+          return;
         }
-      }
 
-      if (allEvents.length === 0) {
-        container.innerHTML = `
-          <div>
-            No <strong>Staked</strong> or <strong>Unstaked</strong> events found for your address in the last ~${Math.round((latestBlock - fromBlock)/1000)}k blocks.
-            <br><br>
-            <small style="color:#888;">
-              Only transactions that actually called the <code>stake()</code> or <code>unstake()</code> functions on the Registry contract will appear here.<br>
-              If you sent IQC tokens directly to the Registry address, they do <strong>not</strong> create these events.
+        const oldReg = OLD_REGISTRY.toLowerCase();
+        const v2Reg = REGISTRY_V2.toLowerCase();
+
+        const relevant = data.result.filter(tx => {
+          const to = (tx.to || '').toLowerCase();
+          const from = (tx.from || '').toLowerCase();
+          return to === oldReg || to === v2Reg || from === oldReg || from === v2Reg;
+        });
+
+        if (relevant.length === 0) {
+          container.innerHTML = `
+            No direct interactions with either Registry found in your recent transactions.<br><br>
+            <small>
+              Note: Sending tokens directly to the Registry does <strong>not</strong> call <code>stake()</code> or <code>unstake()</code>, 
+              so it won't appear as a formal stake/unstake action.
             </small>
-            <br><br>
-            <button onclick="loadOlderHistory()" style="font-size:0.75rem; padding:6px 12px;">
-              Load much older history (can be slow)
-            </button>
-          </div>
+          `;
+          return;
+        }
+
+        let html = '';
+        for (const tx of relevant.slice(0, 30)) {
+          const to = (tx.to || '').toLowerCase();
+          const isV2 = to === v2Reg;
+          const regLabel = isV2 ? 'V2' : 'Old';
+
+          let action = tx.functionName || tx.methodId || 'Contract Interaction';
+          let color = '#888';
+
+          if (action.toLowerCase().includes('stake') && !action.toLowerCase().includes('un')) {
+            color = '#10B981';
+          } else if (action.toLowerCase().includes('unstake')) {
+            color = '#EF4444';
+          }
+
+          const value = parseFloat(ethers.formatEther(tx.value || '0')).toFixed(4);
+          const time = new Date(parseInt(tx.timeStamp) * 1000).toLocaleString();
+          const txUrl = `https://sepolia.basescan.org/tx/${tx.hash}`;
+
+          html += `
+            <div style="margin-bottom:10px; padding:8px 0; border-bottom:1px solid #222;">
+              <span style="color:${color}; font-weight:600;">${action}</span>
+              <span style="font-size:0.65rem; background:#222; padding:0 4px; border-radius:2px;">${regLabel}</span><br>
+              Value: <strong>${value} ETH</strong><br>
+              <span style="color:#666; font-size:0.7rem;">${time}</span><br>
+              <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.7rem;">${tx.hash.slice(0,10)}...</a>
+            </div>
+          `;
+        }
+
+        container.innerHTML = html || 'No relevant transactions found.';
+      } catch (e) {
+        console.error('Basescan txlist error:', e);
+        container.innerHTML = `
+          Failed to load history from Basescan.<br>
+          <button onclick="loadStakingHistory()" style="margin-top:8px; font-size:0.75rem;">Try again</button>
         `;
-        return;
       }
-
-      let html = '';
-      for (const event of allEvents.slice(0, 20)) {
-        const amount = ethers.formatUnits(event.args.amount, 18);
-        const action = event.type === 'STAKE' ? 'Staked' : 'Unstaked';
-        const color = event.type === 'STAKE' ? '#10B981' : '#EF4444';
-        const txUrl = `https://sepolia.basescan.org/tx/${event.transactionHash}`;
-        const regLabel = event.registry === 'V2' ? 'V2' : 'Old';
-
-        html += `
-          <div style="margin-bottom:8px; padding:6px 0; border-bottom:1px solid #222;">
-            <span style="color:${color}; font-weight:600;">${action}</span> 
-            <strong>${parseFloat(amount).toFixed(2)} IQC</strong>
-            <span style="font-size:0.65rem; background:#222; padding:0 4px; border-radius:2px;">${regLabel}</span><br>
-            <a href="${txUrl}" target="_blank" style="color:#888; font-size:0.7rem;">${event.transactionHash.slice(0,10)}...</a>
-          </div>
-        `;
-      }
-
-      container.innerHTML = html;
     }
 
     async function safeQuery(contract, eventName, address, fromBlock, toBlock) {
