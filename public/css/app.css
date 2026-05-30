@@ -736,5 +736,10 @@ body.nav-open { overflow: hidden; }
 
 /* Fix: reduce top padding of hamburger drawer so first item isn't pushed too low */
 .app-nav .nav-links {
-  padding-top: 56px !important;
+  padding-top: 48px !important;   /* Adjusted to better align first menu item with wallet button height */
+}
+
+/* Adjust drawer top padding to align first item (Dashboard) with wallet button */
+.app-nav .nav-links {
+  padding-top: 48px !important;
 }
