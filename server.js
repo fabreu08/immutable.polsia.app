@@ -178,21 +178,44 @@ app.get('/review', async (req, res) => {
       params.push(selectedStatus);
     }
 
-    const packets = await pool.query(`
-      SELECT 
-        qp.*,
-        rd.value,
-        rd.unit,
-        rd.sensor_type,
-        i.name as iname,
-        r.name as reviewer_name
-      FROM qc_packets qp
-      LEFT JOIN readings rd ON qp.reading_id = rd.id
-      LEFT JOIN instruments i ON rd.instrument_id = i.id
-      LEFT JOIN reviewers r ON qp.assigned_reviewer_id = r.id
-      ${where}
-      ORDER BY qp.created_at DESC
-    `, params);
+    let packets;
+    try {
+      packets = await pool.query(`
+        SELECT 
+          qp.*,
+          rd.value,
+          rd.unit,
+          rd.sensor_type,
+          i.name as iname,
+          r.name as reviewer_name
+        FROM qc_packets qp
+        LEFT JOIN readings rd ON qp.reading_id = rd.id
+        LEFT JOIN instruments i ON rd.instrument_id = i.id
+        LEFT JOIN reviewers r ON qp.assigned_reviewer_id = r.id
+        ${where}
+        ORDER BY qp.created_at DESC
+      `, params);
+    } catch (queryErr) {
+      // Fallback if assigned_reviewer_id column doesn't exist yet (schema drift)
+      if (queryErr.message.includes('assigned_reviewer_id')) {
+        packets = await pool.query(`
+          SELECT 
+            qp.*,
+            rd.value,
+            rd.unit,
+            rd.sensor_type,
+            i.name as iname,
+            NULL as reviewer_name
+          FROM qc_packets qp
+          LEFT JOIN readings rd ON qp.reading_id = rd.id
+          LEFT JOIN instruments i ON rd.instrument_id = i.id
+          ${where}
+          ORDER BY qp.created_at DESC
+        `, params);
+      } else {
+        throw queryErr;
+      }
+    }
 
     // Get status counts for the filter tabs
     const qcStats = await pool.query(`

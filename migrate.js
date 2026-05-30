@@ -70,6 +70,12 @@ async function runCoreMigrations(client) {
       status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Ensure assigned_reviewer_id column exists (added later in development)
+  await client.query(`
+    ALTER TABLE qc_packets 
+    ADD COLUMN IF NOT EXISTS assigned_reviewer_id INTEGER REFERENCES reviewers(id)
+  `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS reviewers (
       id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL,

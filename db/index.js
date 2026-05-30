@@ -57,6 +57,12 @@ async function ensureTables() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+
+    // Ensure qc_packets has assigned_reviewer_id (schema drift safety)
+    await client.query(`
+      ALTER TABLE qc_packets 
+      ADD COLUMN IF NOT EXISTS assigned_reviewer_id INTEGER REFERENCES reviewers(id)
+    `);
   } catch (err) {
     console.warn('ensureTables warning (non-fatal):', err.message);
   } finally {
