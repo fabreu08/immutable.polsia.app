@@ -341,3 +341,297 @@ a, button, [role="button"] {
   display: inline-flex;
   align-items: center;
 }
+/* === Improved App Navigation (Hamburger Menu) === */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-logo {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--fg);
+  text-decoration: none;
+  white-space: nowrap;
+  margin-right: auto;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--fg);
+  background: var(--accent-dim);
+}
+
+.nav-link.active {
+  color: var(--fg);
+  background: var(--accent-dim);
+  font-weight: 500;
+}
+
+.nav-icon {
+  font-size: 1rem;
+  width: 18px;
+  text-align: center;
+  display: inline-block;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+/* Hamburger - hidden on desktop */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 8px;
+  gap: 5px;
+  margin-left: 8px;
+}
+
+.nav-hamburger span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--fg-muted);
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.nav-hamburger.open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.nav-hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.nav-hamburger.open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Mobile styles */
+@media (max-width: 900px) {
+  .nav-hamburger {
+    display: flex;
+  }
+
+  .nav-links {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px 20px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    gap: 4px;
+  }
+
+  .nav-links.open {
+    display: flex;
+  }
+
+  .nav-link {
+    padding: 14px 16px;
+    font-size: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 4px;
+  }
+
+  .nav-actions {
+    margin-left: 8px;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+  .nav-logo {
+    font-size: 1.1rem;
+  }
+}
+
+/* ============================================
+   POLISHED HAMBURGER / MOBILE DRAWER (synced from iqc-alpha)
+   Slide-in from right + backdrop overlay + proper JS controller
+   ============================================ */
+
+/* Backdrop overlay */
+.nav-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 150;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  pointer-events: none;
+}
+.nav-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: all;
+}
+
+/* Mobile drawer behavior */
+@media (max-width: 768px) {
+  .app-nav .nav-inner {
+    position: relative;
+  }
+
+  /* Hide the old stacked version, use drawer instead */
+  .app-nav .nav-links {
+    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(280px, 78vw);
+    height: 100vh;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 72px 16px 24px;
+    background: var(--bg);
+    border-left: 1px solid var(--border-strong);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
+    z-index: 160;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .app-nav .nav-links.open {
+    display: flex;
+    transform: translateX(0);
+  }
+
+  .app-nav .nav-link {
+    width: 100%;
+    padding: 16px 18px;
+    font-size: 1.02rem;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .app-nav .nav-link .nav-icon {
+    font-size: 1.1rem;
+    width: 22px;
+    display: inline-block;
+  }
+
+  .app-nav .nav-cta {
+    display: none;
+  }
+
+  .nav-hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 44px;
+    height: 44px;
+    background: none;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 10px;
+    gap: 4px;
+    margin-left: 8px;
+    z-index: 170;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .nav-hamburger:hover { border-color: var(--accent); }
+  .nav-hamburger span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--fg-muted);
+    border-radius: 2px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .nav-hamburger.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  .nav-hamburger.open span:nth-child(2) { opacity: 0; }
+  .nav-hamburger.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+  .nav-close { display: none !important; }
+
+  body.nav-open { overflow: hidden; }
+
+  .app-nav .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .app-nav .nav-actions .wallet-btn { font-size: 0.75rem; padding: 6px 10px; }
+  .app-nav .nav-actions .btn { font-size: 0.75rem; padding: 6px 12px; }
+}
+
+@media (min-width: 769px) {
+  .nav-hamburger,
+  .nav-overlay { display: none !important; }
+
+  .app-nav .nav-links {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .app-nav .nav-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+}

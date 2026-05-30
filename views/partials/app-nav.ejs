@@ -1,0 +1,50 @@
+<nav class="nav app-nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">IMMUTABLE QC</a>
+
+    <div class="nav-links" id="navLinks" role="navigation" aria-label="Primary">
+      <a href="/dashboard"
+         class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/dashboard' ? 'active' : '' %>">
+        <span class="nav-icon">■</span>Dashboard
+      </a>
+      <a href="/readings"
+         class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/readings' ? 'active' : '' %>">
+        <span class="nav-icon">△</span>Readings
+      </a>
+      <a href="/ledger"
+         class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/ledger' ? 'active' : '' %>">
+        <span class="nav-icon">▮</span>Ledger
+      </a>
+      <a href="/review"
+         class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/review' ? 'active' : '' %>">
+        <span class="nav-icon">✓</span>Review
+      </a>
+      <a href="/submit"
+         class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/submit' ? 'active' : '' %>">
+        <span class="nav-icon">↑</span>Submit
+      </a>
+      <a href="/staking"
+         class="nav-link <%= typeof currentPath !== 'undefined' && currentPath === '/staking' ? 'active' : '' %>">
+        <span class="nav-icon">▲</span>Stake
+      </a>
+    </div>
+
+    <div class="nav-actions">
+      <%- include('partials/wallet-btn') %>
+      <a href="/submit" class="btn btn-primary nav-cta">Manual Data Entry</a>
+    </div>
+
+    <button class="nav-hamburger"
+            id="navHamburger"
+            aria-label="Toggle navigation"
+            aria-expanded="false"
+            aria-controls="navLinks">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+
+  <!-- Mobile backdrop overlay -->
+  <div class="nav-overlay" id="navOverlay" aria-hidden="true"></div>
+</nav>
+
+<script src="/js/hamburger.js" defer></script>

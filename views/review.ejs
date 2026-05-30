@@ -48,25 +48,7 @@
   </style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="nav-logo">IMMUTABLE QC</a>
-      <div class="nav-links">
-        <a href="/dashboard" class="nav-link">Dashboard</a>
-        <a href="/readings" class="nav-link">Readings</a>
-        <a href="/ledger" class="nav-link">Ledger</a>
-        <a href="/review" class="nav-link active">Review</a>
-        <a href="/submit" class="nav-link">Submit</a>
-      </div>
-      <div class="nav-actions">
-        <%- include('partials/wallet-btn') %>
-      </div>
-      <button class="nav-hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open'); this.classList.toggle('open');" aria-label="Toggle navigation">
-        <span></span><span></span><span></span>
-      </button>
-      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open'); document.querySelector('.nav-hamburger').classList.remove('open');" aria-label="Close menu">✕</button>
-    </div>
-  </nav>
+  <%- include('partials/app-nav', { currentPath: typeof currentPath !== 'undefined' ? currentPath : '' }) %>
 
   <div class="page">
     <h1 class="page-title">QC Packet Review</h1>
@@ -250,17 +232,5 @@
       });
     });
   </script>
-<script>
-  document.addEventListener('click', function(e) {
-    var nav = document.querySelector('.nav-links');
-    var hamburger = document.querySelector('.nav-hamburger');
-    if (nav && hamburger && nav.classList.contains('open')) {
-      if (!nav.contains(e.target) && !hamburger.contains(e.target)) {
-        nav.classList.remove('open');
-        hamburger.classList.remove('open');
-      }
-    }
-  });
-</script>
 </body>
 </html>
