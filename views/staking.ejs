@@ -203,22 +203,28 @@
       }
 
       try {
-        const [tokenBal, stakedBal] = await Promise.all([
-          IQC_WALLET.getIqcBalance(),
-          IQC_WALLET.getStakedBalance()
+        const [tokenBal] = await Promise.all([
+          IQC_WALLET.getIqcBalance()
         ]);
 
-        tokenEl.textContent = tokenBal ? parseFloat(tokenBal).toFixed(2) + ' IQC' : '—';
-        stakedEl.textContent = stakedBal ? parseFloat(stakedBal).toFixed(2) + ' IQC' : '0 IQC';
+        // Force V2 staked balance (don't rely on potentially stale global wallet.js)
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const v2Registry = new ethers.Contract('0x80c00E40DF46E36652319662929a49bCaeBE52A3', [
+          'function getStakedBalance(address) view returns (uint256)'
+        ], provider);
 
-        // Extra clear warning if they have very low contract stake
-        if (parseFloat(stakedBal || 0) < 1) {
+        const v2Staked = await v2Registry.getStakedBalance(state.address);
+
+        tokenEl.textContent = tokenBal ? parseFloat(tokenBal).toFixed(2) + ' IQC' : '—';
+        stakedEl.textContent = ethers.formatUnits(v2Staked, 18) + ' IQC (V2)';
+
+        if (v2Staked < ethers.parseUnits('1', 18)) {
           document.getElementById('stakedBalanceStatus').textContent = '⚠️ Too low to commit';
           document.getElementById('stakedBalanceStatus').style.color = '#EAB308';
         }
       } catch (e) {
         console.error(e);
-        stakedEl.textContent = 'Error querying contract';
+        stakedEl.textContent = 'Error querying V2';
       }
     }
 

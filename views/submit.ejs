@@ -451,7 +451,19 @@
               <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrumentId}</span></div>`;
           } catch (attErr) {
             console.warn('[submit] On-chain commit to V2 failed:', attErr.message);
-            attestationHtml = `<div class="result-row"><span class="result-label">On-Chain (V2)</span><span class="result-value" style="color:#F59E0B;">⚠ Commit failed: ${attErr.message}</span></div>`;
+            // Make the on-chain failure very loud
+            result.className = 'result error';
+            result.innerHTML = `
+              <div class="result-title">✓ Data saved to ledger (DB)</div>
+              <div style="margin:12px 0; padding:12px; background:#fee2e2; border:2px solid #dc2626; border-radius:6px; color:#991b1b;">
+                <strong>⚠ On-chain commit to V2 failed</strong><br>
+                ${attErr.message}<br><br>
+                <small>You can try again later from the Staking page or after increasing your V2 stake.</small>
+              </div>
+            `;
+            btn.disabled = false;
+            btn.textContent = 'Sign & Submit to Ledger';
+            return;
           }
         }
 
