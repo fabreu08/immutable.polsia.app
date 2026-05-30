@@ -160,13 +160,17 @@
 
     try {
       const res = await fetch('/api/seed', { method: 'POST' });
-      if (!res.ok) throw new Error('Seed failed');
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(body.error || `Seed failed with status ${res.status}`);
+      }
 
       if (status) status.textContent = 'Demo data seeded successfully!';
       setTimeout(() => location.reload(), 800);
     } catch (e) {
-      if (status) status.textContent = 'Failed to seed. Check console.';
-      console.error(e);
+      if (status) status.textContent = 'Failed to seed: ' + (e.message || e);
+      console.error('Seed error:', e);
       btn.disabled = false;
       btn.textContent = 'Seed Demo Data Now';
     }

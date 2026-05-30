@@ -82,7 +82,8 @@ app.post('/api/seed', async (req, res) => {
 
     res.json({ instruments, reviewers });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Seed demo data failed:', err);
+    res.status(500).json({ error: err.message || 'Unknown error during seeding' });
   }
 });
 
