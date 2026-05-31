@@ -76,6 +76,18 @@ async function ensureTables() {
       ADD COLUMN IF NOT EXISTS key_fingerprint TEXT
     `);
 
+    // Ensure instruments has active column (used for soft deletes / filtering)
+    await client.query(`
+      ALTER TABLE instruments 
+      ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true
+    `);
+
+    // Ensure reviewers has active column (used for soft deletes / filtering)
+    await client.query(`
+      ALTER TABLE reviewers 
+      ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true
+    `);
+
     // Schema drift fixes for readings table (needed for on-chain + hash chain)
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS signing_key_fingerprint TEXT`);
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS previous_hash TEXT`);

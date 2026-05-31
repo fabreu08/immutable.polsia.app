@@ -62,6 +62,12 @@ async function runCoreMigrations(client) {
     ALTER TABLE instruments 
     ADD COLUMN IF NOT EXISTS key_fingerprint TEXT
   `);
+
+  // Ensure active column exists (for filtering / soft delete)
+  await client.query(`
+    ALTER TABLE instruments 
+    ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true
+  `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS readings (
       id SERIAL PRIMARY KEY, instrument_id INTEGER REFERENCES instruments(id),
@@ -102,6 +108,12 @@ async function runCoreMigrations(client) {
       id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL,
       role VARCHAR(50), department VARCHAR(255), active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+
+  // Ensure active column exists on reviewers (schema drift safety)
+  await client.query(`
+    ALTER TABLE reviewers 
+    ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true
   `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS attestations (
