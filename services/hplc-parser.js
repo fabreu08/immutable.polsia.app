@@ -17,7 +17,34 @@ function parseHplcCsv(buffer) {
     throw new Error('CSV has fewer than 3 lines — not a valid HPLC export');
   }
 
-  const format = detectFormat(lines[0], lines[1]);
+  // Find the first row that looks like an actual peak table header
+  // (many Agilent exports have metadata lines before the real header)
+  let headerCandidate = null;
+  let headerIdx = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].toLowerCase();
+    const looksLikeHeader =
+      (l.includes('ret') && l.includes('time') && l.includes('area')) ||
+      (l.includes('rettime') && l.includes('area')) ||
+      (l.includes('retention time') && l.includes('area')) ||
+      (l.includes('peak#') && l.includes('area'));
+
+    if (looksLikeHeader) {
+      headerCandidate = lines[i];
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (!headerCandidate) {
+    throw new Error(
+      'Could not find a peak table header row containing RetTime + Area columns.\n' +
+      'First line was: ' + lines[0].substring(0, 100)
+    );
+  }
+
+  const format = detectFormat(headerCandidate, lines[headerIdx + 1] || '');
 
   if (format === 'waters') {
     return parseWatersEmpower(lines);
@@ -26,7 +53,7 @@ function parseHplcCsv(buffer) {
   } else {
     throw new Error(
       'Unrecognized CSV format. Expected Waters Empower or Agilent OpenLAB export.\n' +
-      'Header row found: ' + lines[0].substring(0, 120)
+      'Header row found: ' + headerCandidate.substring(0, 120)
     );
   }
 }
