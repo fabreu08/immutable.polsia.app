@@ -88,6 +88,7 @@ async function runCoreMigrations(client) {
     CREATE TABLE IF NOT EXISTS qc_packets (
       id SERIAL PRIMARY KEY, reading_id INTEGER REFERENCES readings(id), assigned_reviewer_id INTEGER REFERENCES reviewers(id),
       status VARCHAR(20) DEFAULT 'pending', priority VARCHAR(20) DEFAULT 'normal',
+      notes TEXT, approved_at TIMESTAMPTZ, reviewer_id INTEGER REFERENCES reviewers(id),
       created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
@@ -102,6 +103,17 @@ async function runCoreMigrations(client) {
   await client.query(`
     ALTER TABLE qc_packets 
     ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'
+  `);
+
+  // Additional columns for attestation updates
+  await client.query(`
+    ALTER TABLE qc_packets ADD COLUMN IF NOT EXISTS notes TEXT
+  `);
+  await client.query(`
+    ALTER TABLE qc_packets ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ
+  `);
+  await client.query(`
+    ALTER TABLE qc_packets ADD COLUMN IF NOT EXISTS reviewer_id INTEGER REFERENCES reviewers(id)
   `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS reviewers (
@@ -143,9 +155,16 @@ async function runCoreMigrations(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS wallet_attestations (
       id SERIAL PRIMARY KEY, qc_packet_id INTEGER, wallet_address TEXT NOT NULL,
-      chain VARCHAR(50), signature TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW()
+      chain_id INTEGER, signature TEXT NOT NULL, message TEXT, reading_hash TEXT, tx_hash TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Safety columns for wallet_attestations (schema drift)
+  await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS chain_id INTEGER`);
+  await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS message TEXT`);
+  await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
+  await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS tx_hash TEXT`);
 
   // Analytics, Faucet, Demo requests (added 2026-05-29 to fix production schema)
   await client.query(`

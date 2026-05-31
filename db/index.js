@@ -58,6 +58,25 @@ async function ensureTables() {
       )
     `);
 
+    // wallet_attestations (schema drift safety - columns added for full on-chain support)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wallet_attestations (
+        id SERIAL PRIMARY KEY,
+        qc_packet_id INTEGER,
+        wallet_address TEXT NOT NULL,
+        chain_id INTEGER,
+        signature TEXT NOT NULL,
+        message TEXT,
+        reading_hash TEXT,
+        tx_hash TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS chain_id INTEGER`);
+    await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS message TEXT`);
+    await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
+    await client.query(`ALTER TABLE wallet_attestations ADD COLUMN IF NOT EXISTS tx_hash TEXT`);
+
     // Ensure qc_packets has assigned_reviewer_id (schema drift safety)
     await client.query(`
       ALTER TABLE qc_packets 
@@ -68,6 +87,20 @@ async function ensureTables() {
     await client.query(`
       ALTER TABLE qc_packets 
       ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'
+    `);
+
+    // Additional columns used in updateQcPacketStatus and legacy code
+    await client.query(`
+      ALTER TABLE qc_packets 
+      ADD COLUMN IF NOT EXISTS notes TEXT
+    `);
+    await client.query(`
+      ALTER TABLE qc_packets 
+      ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ
+    `);
+    await client.query(`
+      ALTER TABLE qc_packets 
+      ADD COLUMN IF NOT EXISTS reviewer_id INTEGER REFERENCES reviewers(id)
     `);
 
     // Ensure instruments has key_fingerprint (required by seed + signing)
