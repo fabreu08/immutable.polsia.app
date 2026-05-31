@@ -49,16 +49,19 @@ function parseHplcCsv(buffer) {
 
   const format = detectFormat(headerCandidate, lines[headerIdx + 1] || '');
 
+  let result;
   if (format === 'waters') {
-    return parseWatersEmpower(lines);
+    result = parseWatersEmpower(lines);
   } else if (format === 'agilent') {
-    return parseAgilentOpenLAB(lines);
+    result = parseAgilentOpenLAB(lines);
   } else {
     throw new Error(
       'Unrecognized CSV format. Expected Waters Empower or Agilent OpenLAB export.\n' +
       'Header row found: ' + headerCandidate.substring(0, 120)
     );
   }
+
+  return { ...result, metadata };
 }
 
 /**
@@ -157,7 +160,7 @@ function parseWatersEmpower(lines) {
     });
   }
 
-  return { format: 'waters_empower', peaks, metadata };
+  return { format: 'waters_empower', peaks };
 }
 
 /**
@@ -222,7 +225,7 @@ function parseAgilentOpenLAB(lines) {
     });
   }
 
-  return { format: 'agilent_openlab', peaks, metadata };
+  return { format: 'agilent_openlab', peaks };
 }
 
 /**
