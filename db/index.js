@@ -76,6 +76,7 @@ async function ensureTables() {
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS block_number INTEGER`);
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS ledger_block_number INTEGER`);
+    await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS captured_at TIMESTAMPTZ DEFAULT NOW()`);
 
     // Defensive creation of ledger_entries (critical for hash chain)
     await client.query(`

@@ -77,6 +77,7 @@ async function runCoreMigrations(client) {
   await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS block_number INTEGER`);
   await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS reading_hash TEXT`);
   await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS ledger_block_number INTEGER`);
+  await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS captured_at TIMESTAMPTZ DEFAULT NOW()`);
   await client.query(`
     CREATE TABLE IF NOT EXISTS qc_packets (
       id SERIAL PRIMARY KEY, reading_id INTEGER REFERENCES readings(id), assigned_reviewer_id INTEGER REFERENCES reviewers(id),
