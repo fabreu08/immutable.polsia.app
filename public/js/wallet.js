@@ -314,11 +314,13 @@ const IQC_WALLET = (() => {
   // Base Name (from base.org/name/immutableqc)
   const BASE_NAME = 'immutableqc.base';
 
-  // Return the project's Base Name when on a Base chain
+  // Return the project's Base Name only on Base mainnet
   async function getDisplayName(addr) {
     if (!addr) return null;
     const state = getState();
-    if (state.isIqcChain) {
+
+    // Only show the nice name on Base mainnet (chain 8453)
+    if (state.chainId === 8453) {
       return BASE_NAME;
     }
     return null;
