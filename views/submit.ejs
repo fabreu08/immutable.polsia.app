@@ -592,7 +592,7 @@
       }
     });
 
-    // HPLC file selection & drag-drop
+    // HPLC file selection & drag-drop (defensive - only initialize if elements exist)
     const csvFile = document.getElementById('csvFile');
     const fileDrop = document.getElementById('fileDrop');
     const fileName = document.getElementById('fileName');
@@ -600,35 +600,42 @@
     const peakPreview = document.getElementById('peakPreview');
     const peakPreviewBody = document.getElementById('peakPreviewBody');
 
-    csvFile.addEventListener('change', () => {
-      if (csvFile.files.length > 0) {
-        fileName.textContent = csvFile.files[0].name;
-        hplcSubmitBtn.disabled = false;
-        hplcSubmitBtn.textContent = 'Parse & Ingest CSV';
-        // Quick preview: show file size
-        peakPreview.style.display = 'block';
-        peakPreviewBody.innerHTML = `<span class="peak-count">${csvFile.files[0].name}</span> — ${(csvFile.files[0].size / 1024).toFixed(1)} KB ready to parse`;
-      }
-    });
+    if (csvFile && fileDrop && hplcSubmitBtn) {
+      csvFile.addEventListener('change', () => {
+        if (csvFile.files.length > 0) {
+          if (fileName) fileName.textContent = csvFile.files[0].name;
+          hplcSubmitBtn.disabled = false;
+          hplcSubmitBtn.textContent = 'Parse & Ingest CSV';
+          if (peakPreview && peakPreviewBody) {
+            peakPreview.style.display = 'block';
+            peakPreviewBody.innerHTML = `<span class="peak-count">${csvFile.files[0].name}</span> (${(csvFile.files[0].size / 1024).toFixed(1)} KB ready)`;
+          }
+        }
+      });
 
-    // Drag-drop visual
-    fileDrop.addEventListener('dragover', (e) => { e.preventDefault(); fileDrop.classList.add('drag-over'); });
-    fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('drag-over'));
-    fileDrop.addEventListener('drop', (e) => {
-      e.preventDefault();
-      fileDrop.classList.remove('drag-over');
-      csvFile.files = e.dataTransfer.files;
-      if (csvFile.files.length > 0) {
-        fileName.textContent = csvFile.files[0].name;
-        hplcSubmitBtn.disabled = false;
-        hplcSubmitBtn.textContent = 'Parse & Ingest CSV';
-        peakPreview.style.display = 'block';
-        peakPreviewBody.innerHTML = `<span class="peak-count">${csvFile.files[0].name}</span> — ${(csvFile.files[0].size / 1024).toFixed(1)} KB ready to parse`;
-      }
-    });
+      // Drag-drop visual
+      fileDrop.addEventListener('dragover', (e) => { e.preventDefault(); fileDrop.classList.add('drag-over'); });
+      fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('drag-over'));
+      fileDrop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        fileDrop.classList.remove('drag-over');
+        csvFile.files = e.dataTransfer.files;
+        if (csvFile.files.length > 0) {
+          if (fileName) fileName.textContent = csvFile.files[0].name;
+          hplcSubmitBtn.disabled = false;
+          hplcSubmitBtn.textContent = 'Parse & Ingest CSV';
+          if (peakPreview && peakPreviewBody) {
+            peakPreview.style.display = 'block';
+            peakPreviewBody.innerHTML = `<span class="peak-count">${csvFile.files[0].name}</span> (${(csvFile.files[0].size / 1024).toFixed(1)} KB ready)`;
+          }
+        }
+      });
+    }
 
     // HPLC form submission — reads file as base64, sends as JSON
-    document.getElementById('hplcForm').addEventListener('submit', async (e) => {
+    const hplcForm = document.getElementById('hplcForm');
+    if (hplcForm) {
+      hplcForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('hplcSubmitBtn');
       const result = document.getElementById('hplcResult');
@@ -682,6 +689,7 @@
         btn.textContent = 'Parse & Ingest CSV';
       }
     });
+    } // end of if (hplcForm)
 
     // Faucet request handler
 async function handleFaucetRequest(e) {
