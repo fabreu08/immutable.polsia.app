@@ -55,27 +55,7 @@ router.post('/upload', async (req, res) => {
       return res.status(400).json({ error: 'csv field must be valid base64-encoded text.' });
     }
 
-    // Resolve or auto-register instrument
-    let instrument;
-    if (instrumentId) {
-      instrument = await dbInstruments.getInstrumentById(parseInt(instrumentId));
-    } else if (instrumentSerial) {
-      instrument = await dbInstruments.getInstrumentBySerial(instrumentSerial);
-    }
-
-    if (!instrument) {
-      const serial = instrumentSerial || `HPLC-${Date.now()}`;
-      const { fingerprint } = cryptoService.getSigningKey();
-      instrument = await dbInstruments.createInstrument({
-        name: `HPLC Instrument (${serial})`,
-        sensorType: 'hplc',
-        serialNumber: serial,
-        keyFingerprint: fingerprint,
-        location: null,
-      });
-    }
-
-    // Parse CSV — detect Waters or Agilent format from header
+    // Parse CSV early so we can use metadata for instrument resolution
     let parsed;
     try {
       parsed = parseHplcCsv(csvBuffer);
@@ -89,6 +69,53 @@ router.post('/upload', async (req, res) => {
     if (!parsed.peaks || parsed.peaks.length === 0) {
       return res.status(422).json({
         error: 'CSV parsed but no valid peaks found. Ensure the CSV has Retention Time and Area columns with numeric data.',
+      });
+    }
+
+    // Require either form-provided serial or extractable instrument from CSV metadata
+    const hasFormSerial = instrumentSerial && instrumentSerial.trim().length > 0;
+    const hasCsvInstrument = parsed.metadata && parsed.metadata.instrument;
+
+    if (!hasFormSerial && !hasCsvInstrument) {
+      return res.status(400).json({
+        error: 'Instrument Serial is required.',
+        hint: 'Fill the "Instrument Serial" field in the form, or include an "Instrument" line in your CSV (e.g. "Instrument","Agilent 1260 Infinity II"). This prevents creating dozens of duplicate instruments.',
+        receivedMetadata: parsed.metadata || null
+      });
+    }
+
+    // Resolve or auto-register instrument.
+    // Priority: 1. Form field, 2. CSV metadata (e.g. "Instrument" line), 3. Auto-create with timestamp
+    let instrument;
+    const csvInstrumentName = parsed.metadata?.instrument;
+
+    if (instrumentId) {
+      instrument = await dbInstruments.getInstrumentById(parseInt(instrumentId));
+    } else if (instrumentSerial) {
+      instrument = await dbInstruments.getInstrumentBySerial(instrumentSerial);
+    } else if (csvInstrumentName) {
+      // Try to find an existing instrument by name or serial that matches the CSV metadata
+      instrument = await dbInstruments.getInstrumentBySerial(csvInstrumentName);
+      if (!instrument) {
+        // As a fallback, search by name (simple contains match)
+        const all = await dbInstruments.getAllInstruments(false);
+        instrument = all.find(i =>
+          (i.name && i.name.toLowerCase().includes(csvInstrumentName.toLowerCase())) ||
+          (i.serial_number && i.serial_number.toLowerCase().includes(csvInstrumentName.toLowerCase()))
+        );
+      }
+    }
+
+    if (!instrument) {
+      // Only auto-create if we still have nothing
+      const serial = instrumentSerial || csvInstrumentName || `HPLC-${Date.now()}`;
+      const { fingerprint } = cryptoService.getSigningKey();
+      instrument = await dbInstruments.createInstrument({
+        name: csvInstrumentName ? `HPLC - ${csvInstrumentName}` : `HPLC Instrument (${serial})`,
+        sensorType: 'hplc',
+        serialNumber: serial,
+        keyFingerprint: fingerprint,
+        location: null,
       });
     }
 

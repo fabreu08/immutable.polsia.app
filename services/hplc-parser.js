@@ -6,7 +6,7 @@
 
 /**
  * Parse an HPLC CSV file buffer.
- * Returns { format, peaks: [{ retentionTime, peakArea, resolution, tailingFactor, height, amount, name }] }
+ * Returns { format, peaks, metadata }
  * Supports Waters Empower and Agilent OpenLAB formats.
  */
 function parseHplcCsv(buffer) {
@@ -43,6 +43,9 @@ function parseHplcCsv(buffer) {
       'First line was: ' + lines[0].substring(0, 100)
     );
   }
+
+  // Extract metadata from lines before the actual peak table (common in Agilent exports)
+  const metadata = extractCsvMetadata(lines, headerIdx);
 
   const format = detectFormat(headerCandidate, lines[headerIdx + 1] || '');
 
@@ -154,7 +157,7 @@ function parseWatersEmpower(lines) {
     });
   }
 
-  return { format: 'waters_empower', peaks };
+  return { format: 'waters_empower', peaks, metadata };
 }
 
 /**
@@ -219,7 +222,7 @@ function parseAgilentOpenLAB(lines) {
     });
   }
 
-  return { format: 'agilent_openlab', peaks };
+  return { format: 'agilent_openlab', peaks, metadata };
 }
 
 /**
@@ -255,6 +258,36 @@ function findCol(headers, aliases) {
     if (idx !== -1) return idx;
   }
   return -1;
+}
+
+/**
+ * Extract key-value metadata from lines before the peak table header.
+ * Handles common Agilent "Key","Value" format.
+ */
+function extractCsvMetadata(lines, headerIdx) {
+  const metadata = {};
+
+  for (let i = 0; i < headerIdx; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    // Match "Key","Value" or "Key",Value patterns (quoted or not)
+    const match = line.match(/^"([^"]+)"\s*,\s*"([^"]*)"/);
+    if (match) {
+      const key = match[1].trim().toLowerCase();
+      const value = match[2].trim();
+      if (value) {
+        // Normalize common keys
+        if (key.includes('instrument')) metadata.instrument = value;
+        if (key.includes('sample')) metadata.sampleName = value;
+        if (key.includes('acq') || key.includes('method')) metadata.method = value;
+        if (key.includes('analyst')) metadata.analyst = value;
+        if (key.includes('data file')) metadata.dataFile = value;
+      }
+    }
+  }
+
+  return metadata;
 }
 
 module.exports = { parseHplcCsv };

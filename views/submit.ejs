@@ -200,8 +200,9 @@
           </div>
 
           <div class="form-group">
-            <label for="hplcSerial">Instrument Serial <span class="label-hint">(auto-registered if blank)</span></label>
-            <input type="text" id="hplcSerial" name="instrumentSerial" placeholder="e.g. HPLC-2026-001">
+            <label for="hplcSerial">Instrument Serial <span class="label-hint" style="color:#f59e0b">(required — prevents duplicate instruments)</span></label>
+            <input type="text" id="hplcSerial" name="instrumentSerial" placeholder="e.g. AGILENT-1260-01 or HPLC-2026-001" required>
+            <div class="hint">Provide a stable identifier for this instrument. The system will try to reuse existing ones and now also reads the "Instrument" line from your CSV if left blank.</div>
           </div>
 
           <div class="form-group">
@@ -655,15 +656,20 @@
         const fileInput = document.getElementById('csvFile');
         if (!fileInput.files.length) throw new Error('No file selected');
 
+        const fd = new FormData(e.target);
+        const instrumentSerialValue = fd.get('instrumentSerial');
+        if (!instrumentSerialValue || instrumentSerialValue.trim() === '') {
+          throw new Error('Instrument Serial is required. Please enter a stable name/serial for this instrument (e.g. AGILENT-1260-01). This prevents creating duplicate instruments on every upload.');
+        }
+
         const file = fileInput.files[0];
         // Robust UTF-8 to base64 (btoa alone fails on many real CSVs)
         const text = await file.text();
         const csvBase64 = btoa(unescape(encodeURIComponent(text)));
 
-        const fd = new FormData(e.target);
         const payload = {
           csv: csvBase64,
-          instrumentSerial: fd.get('instrumentSerial') || undefined,
+          instrumentSerial: instrumentSerialValue || undefined,
           batchId: fd.get('batchId') || undefined,
           injectionTime: fd.get('injectionTime') ? new Date(fd.get('injectionTime')).toISOString() : undefined,
         };
