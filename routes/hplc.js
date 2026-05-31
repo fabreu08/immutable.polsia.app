@@ -33,6 +33,13 @@ router.post('/upload', async (req, res) => {
   try {
     const { csv, instrumentId, instrumentSerial, batchId, injectionTime } = req.body;
 
+    console.log('HPLC Upload: Received request', {
+      csvLength: csv?.length,
+      instrumentSerial,
+      batchId,
+      hasInjectionTime: !!injectionTime,
+    });
+
     if (!csv || typeof csv !== 'string') {
       return res.status(400).json({
         error: 'csv field required — pass base64-encoded CSV content as { csv: "<base64>" }',
@@ -73,7 +80,10 @@ router.post('/upload', async (req, res) => {
     try {
       parsed = parseHplcCsv(csvBuffer);
     } catch (err) {
-      return res.status(422).json({ error: `CSV parse error: ${err.message}` });
+      return res.status(422).json({
+        error: `CSV parse error: ${err.message}`,
+        hint: 'Ensure file is exported from Waters Empower or Agilent OpenLAB with Retention Time + Area columns',
+      });
     }
 
     if (!parsed.peaks || parsed.peaks.length === 0) {
@@ -85,8 +95,11 @@ router.post('/upload', async (req, res) => {
     // Chain state for consecutive block numbering across peak batch
     const latestEntry = await dbLedger.getLatestLedgerEntry();
     await ledgerService.getOrCreateGenesisBlock();
-    const previousHash = latestEntry ? latestEntry.block_hash : GENESIS_HASH;
+
+    // FIX: Use mutable previous hash so each peak properly chains to the one before it
+    let currentPreviousHash = latestEntry ? latestEntry.block_hash : GENESIS_HASH;
     const startBlock = latestEntry ? latestEntry.block_number + 1 : 1;
+
     const { privateKey, fingerprint } = cryptoService.getSigningKey();
     const capturedAt = injectionTime || new Date().toISOString();
 
@@ -107,7 +120,8 @@ router.post('/upload', async (req, res) => {
       const signature = cryptoService.signHash(readingHash, privateKey);
       const blockNum = startBlock + i;
 
-      const chainHash = cryptoService.chainHash(previousHash, readingHash, blockNum);
+      // Compute this block's chain hash from the *actual* previous link
+      const chainHash = cryptoService.chainHash(currentPreviousHash, readingHash, blockNum);
 
       const reading = await dbReadings.createReadingWithMetadata({
         instrumentId: instrument.id,
@@ -117,7 +131,8 @@ router.post('/upload', async (req, res) => {
         capturedAt,
         signature,
         signingKeyFingerprint: fingerprint,
-        previousHash: chainHash,
+        // Store the correct previous link (not the new chainHash)
+        previousHash: currentPreviousHash,
         blockNumber: blockNum,
         readingHash,
         measurementMetadata: JSON.stringify({
@@ -131,8 +146,12 @@ router.post('/upload', async (req, res) => {
           batchId: batchId || null,
           peakIndex: i + 1,
           totalPeaks: parsed.peaks.length,
+          chainHash, // persisted for verification/debugging
         }),
       });
+
+      // CRITICAL: Advance the chain for the next peak
+      currentPreviousHash = chainHash;
 
       const qcPacket = await qcPacketService.createPacketForReading(reading.id, instrument.id);
       results.push({ reading, qcPacket, peak });
@@ -146,7 +165,12 @@ router.post('/upload', async (req, res) => {
       note: `${parsed.peaks.length} HPLC peaks ingested, signed, and assigned QC packets`,
     });
   } catch (err) {
-    console.error('POST /api/hplc/upload error:', err);
+    console.error('HPLC Upload Error:', {
+      message: err.message,
+      stack: err.stack,
+      bodyKeys: Object.keys(req.body || {}),
+      csvPrefix: req.body?.csv?.substring(0, 60),
+    });
     res.status(500).json({ error: err.message });
   }
 });

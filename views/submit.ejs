@@ -637,8 +637,15 @@
     if (hplcForm) {
       hplcForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+
       const btn = document.getElementById('hplcSubmitBtn');
       const result = document.getElementById('hplcResult');
+
+      if (!btn || !result) {
+        console.error('HPLC submit handler: missing elements', { btn: !!btn, result: !!result });
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = 'Parsing & signing peaks…';
       result.className = 'result';
@@ -661,6 +668,12 @@
           injectionTime: fd.get('injectionTime') ? new Date(fd.get('injectionTime')).toISOString() : undefined,
         };
 
+        console.log('HPLC Upload: Sending payload', {
+          csvLength: payload.csv?.length,
+          instrumentSerial: payload.instrumentSerial,
+          batchId: payload.batchId,
+        });
+
         const res = await fetch('/api/hplc/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -671,25 +684,38 @@
         if (!res.ok) throw new Error(data.error || 'HPLC upload failed');
 
         result.className = 'result success';
-        const peaks = data.peaksProcessed || 0;
-        const readings = data.readings || [];
-        const first = readings[0] || {};
-        const last = readings[readings.length - 1] || {};
-        const firstBlock = first.reading?.block_number ?? first.block_number ?? '?';
-        const lastBlock = last.reading?.block_number ?? last.block_number ?? '?';
+        result.style.display = 'block';   // force visibility
 
-        result.innerHTML = `
-          <div class="result-title">✓ ${peaks} HPLC peak${peaks > 1 ? 's' : ''} committed to ledger</div>
-          <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrument?.name || 'Unknown'}</span></div>
-          <div class="result-row"><span class="result-label">Format</span><span class="result-value">${data.format || 'Unknown'}</span></div>
-          <div class="result-row"><span class="result-label">Peaks Processed</span><span class="result-value">${peaks}</span></div>
-          <div class="result-row"><span class="result-label">Blocks</span><span class="result-value">#${firstBlock}–${lastBlock}</span></div>
-          <div class="result-row"><span class="result-label">QC Packets</span><span class="result-value">${peaks} pending review</span></div>
-          <div style="margin-top:16px;text-align:center;">
-            <a href="/readings?sensor_type=hplc" style="color:var(--accent);font-size:0.875rem;">View HPLC readings →</a>
-          </div>`;
+        // Defensive success rendering (prevents any property access from killing the success state)
+        let html = '';
+        try {
+          const peaks = data.peaksProcessed || 0;
+          const readings = Array.isArray(data.readings) ? data.readings : [];
+          const first = readings[0] || {};
+          const last = readings[readings.length - 1] || {};
+          const firstBlock = first.reading?.block_number ?? first.block_number ?? '?';
+          const lastBlock = last.reading?.block_number ?? last.block_number ?? '?';
+
+          html = `
+            <div class="result-title">✓ ${peaks} HPLC peak${peaks > 1 ? 's' : ''} committed to ledger</div>
+            <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrument?.name || 'Unknown'}</span></div>
+            <div class="result-row"><span class="result-label">Format</span><span class="result-value">${data.format || 'Unknown'}</span></div>
+            <div class="result-row"><span class="result-label">Peaks Processed</span><span class="result-value">${peaks}</span></div>
+            <div class="result-row"><span class="result-label">Blocks</span><span class="result-value">#${firstBlock}–${lastBlock}</span></div>
+            <div class="result-row"><span class="result-label">QC Packets</span><span class="result-value">${peaks} pending review</span></div>
+            <div style="margin-top:16px;text-align:center;">
+              <a href="/readings?sensor_type=hplc" style="color:var(--accent);font-size:0.875rem;">View HPLC readings →</a>
+            </div>`;
+        } catch (renderErr) {
+          console.error('HPLC success render error:', renderErr);
+          html = `<div class="result-title">✓ Upload complete (display error)</div>
+                  <div style="font-size:0.875rem;color:#6B7280;">Data was saved but rendering failed. Check console for details.</div>`;
+        }
+        result.innerHTML = html;
       } catch (err) {
+        console.error('HPLC Upload caught error:', err);
         result.className = 'result error';
+        result.style.display = 'block';   // force visibility in case CSS rule doesn't trigger
         result.innerHTML = `<div class="result-title">✗ Error</div><div style="font-size:0.875rem;color:#EF4444;">${err.message}</div>`;
       } finally {
         btn.disabled = false;
