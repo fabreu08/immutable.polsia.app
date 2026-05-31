@@ -649,7 +649,9 @@
         if (!fileInput.files.length) throw new Error('No file selected');
 
         const file = fileInput.files[0];
-        const csvBase64 = await file.text().then(t => btoa(t));
+        // Robust UTF-8 to base64 (btoa alone fails on many real CSVs)
+        const text = await file.text();
+        const csvBase64 = btoa(unescape(encodeURIComponent(text)));
 
         const fd = new FormData(e.target);
         const payload = {
@@ -669,14 +671,19 @@
         if (!res.ok) throw new Error(data.error || 'HPLC upload failed');
 
         result.className = 'result success';
-        const peaks = data.peaksProcessed;
-        const firstRead = data.readings[0];
+        const peaks = data.peaksProcessed || 0;
+        const readings = data.readings || [];
+        const first = readings[0] || {};
+        const last = readings[readings.length - 1] || {};
+        const firstBlock = first.reading?.block_number ?? first.block_number ?? '?';
+        const lastBlock = last.reading?.block_number ?? last.block_number ?? '?';
+
         result.innerHTML = `
           <div class="result-title">✓ ${peaks} HPLC peak${peaks > 1 ? 's' : ''} committed to ledger</div>
-          <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrument.name}</span></div>
-          <div class="result-row"><span class="result-label">Format</span><span class="result-value">${data.format}</span></div>
+          <div class="result-row"><span class="result-label">Instrument</span><span class="result-value">${data.instrument?.name || 'Unknown'}</span></div>
+          <div class="result-row"><span class="result-label">Format</span><span class="result-value">${data.format || 'Unknown'}</span></div>
           <div class="result-row"><span class="result-label">Peaks Processed</span><span class="result-value">${peaks}</span></div>
-          <div class="result-row"><span class="result-label">Blocks</span><span class="result-value">#${firstRead.reading.block_number}–${data.readings[data.readings.length-1].reading.block_number}</span></div>
+          <div class="result-row"><span class="result-label">Blocks</span><span class="result-value">#${firstBlock}–${lastBlock}</span></div>
           <div class="result-row"><span class="result-label">QC Packets</span><span class="result-value">${peaks} pending review</span></div>
           <div style="margin-top:16px;text-align:center;">
             <a href="/readings?sensor_type=hplc" style="color:var(--accent);font-size:0.875rem;">View HPLC readings →</a>
