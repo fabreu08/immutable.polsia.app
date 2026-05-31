@@ -117,7 +117,7 @@
   const label = document.getElementById('walletBtnLabel');
   const modal = document.getElementById('walletModal');
 
-  function updateBtn(state) {
+  async function updateBtn(state) {
     btn.className = 'wallet-btn ' + (
       !IQC_WALLET.isWalletAvailable() ? 'no-wallet' :
       state.connected ? 'connected' : 'disconnected'
@@ -127,10 +127,14 @@
       label.textContent = 'No Wallet';
       btn.title = 'Install MetaMask or compatible EVM wallet';
     } else if (state.connected) {
-      label.innerHTML = '<span class="dot"></span> ' +
-        IQC_WALLET.shortAddress(state.address) +
+      const displayName = await IQC_WALLET.getDisplayName(state.address);
+      const nameHtml = displayName 
+        ? `<span style="font-family: var(--font-body); font-weight: 500;">${displayName}</span>` 
+        : IQC_WALLET.shortAddress(state.address);
+
+      label.innerHTML = '<span class="dot"></span> ' + nameHtml +
         '<span class="wallet-chain">' + (state.chainName || '') + '</span>';
-      btn.title = 'Connected: ' + state.address;
+      btn.title = displayName ? displayName : ('Connected: ' + state.address);
     } else {
       label.textContent = 'Connect Wallet';
       btn.title = 'Connect MetaMask or compatible EVM wallet';
@@ -140,7 +144,11 @@
   async function showModal(state) {
     if (!state.connected) return;
     const details = document.getElementById('walletDetails');
+    const displayName = await IQC_WALLET.getDisplayName(state.address);
+
     details.innerHTML = [
+      displayName ? 
+        '<div class="wallet-detail-row"><span class="wallet-detail-label">Base Name</span><span class="wallet-detail-value" style="font-family: var(--font-body);">' + displayName + '</span></div>' : '',
       '<div class="wallet-detail-row"><span class="wallet-detail-label">Address</span><span class="wallet-detail-value">' + IQC_WALLET.shortAddress(state.address) + '</span></div>',
       '<div class="wallet-detail-row"><span class="wallet-detail-label">Full Address</span><span class="wallet-detail-value" style="font-size:0.7rem;word-break:break-all;">' + state.address + '</span></div>',
       '<div class="wallet-detail-row"><span class="wallet-detail-label">Chain</span><span class="wallet-detail-value">' + state.chainName + ' (' + state.chainId + ')</span></div>',
@@ -234,10 +242,14 @@
     if (e.target === modal) modal.classList.remove('visible');
   });
 
-  IQC_WALLET.onStateChange(updateBtn);
+  IQC_WALLET.onStateChange(async (state) => {
+    await updateBtn(state);
+  });
 
   // Initial state
-  updateBtn(IQC_WALLET.getState());
+  (async () => {
+    await updateBtn(IQC_WALLET.getState());
+  })();
 
   // Auto-reconnect if previously connected (check if wallet is already authorized)
   if (IQC_WALLET.isWalletAvailable() && window.ethereum) {

@@ -311,6 +311,19 @@ const IQC_WALLET = (() => {
     return addr.slice(0, 6) + '…' + addr.slice(-4);
   }
 
+  // Base Name (from base.org/name/immutableqc)
+  const BASE_NAME = 'immutableqc.base';
+
+  // Return the project's Base Name when on a Base chain
+  async function getDisplayName(addr) {
+    if (!addr) return null;
+    const state = getState();
+    if (state.isIqcChain) {
+      return BASE_NAME;
+    }
+    return null;
+  }
+
   return {
     isWalletAvailable,
     connect,
@@ -327,6 +340,8 @@ const IQC_WALLET = (() => {
     submitOnChainAttestation,
     requestFaucetTokens,
     shortAddress,
+    getDisplayName,
+    BASE_NAME,
     CHAINS,
     IQC_REGISTRY,
     IQC_TOKEN,
