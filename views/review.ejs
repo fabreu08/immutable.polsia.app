@@ -138,6 +138,7 @@
               <button class="btn wallet-sign-btn"
                 data-packet-id="<%= p.id %>"
                 data-reading-hash="<%= p.reading_hash %>"
+                data-instrument="<%= p.iname || '' %>"
                 data-track="qc-wallet-sign"
                 style="padding:6px 14px;font-size:0.8125rem;background:var(--accent-dim);color:var(--accent);border:1px solid var(--border-strong);"
               >
@@ -208,8 +209,9 @@
         btn.disabled = true;
         btn.textContent = 'Signing…';
 
+        const instrumentId = btn.dataset.instrument || 'UNKNOWN-INSTRUMENT';
         try {
-          const result = await IQC_WALLET.submitOnChainAttestation(packetId, readingHash);
+          const result = await IQC_WALLET.submitOnChainAttestation(packetId, readingHash, instrumentId);
           resultEl.style.display = 'block';
           resultEl.style.borderColor = 'var(--border-strong)';
           const att = result.attestation;

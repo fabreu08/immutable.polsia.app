@@ -12,9 +12,12 @@ router.post('/attest', async (req, res) => {
   try {
     const { packetId, readingHash, walletAddress, chainId, signature, message, txHash } = req.body;
 
-    if (!packetId || !walletAddress || !chainId || !signature || !message) {
-      return res.status(400).json({ error: 'Missing required fields: packetId, walletAddress, chainId, signature, message' });
+    if (!packetId || !walletAddress || !chainId || !message) {
+      return res.status(400).json({ error: 'Missing required fields: packetId, walletAddress, chainId, message' });
     }
+
+    // For on-chain commitments (new Registry flow), signature can be the txHash if not provided separately
+    const finalSignature = signature || txHash;
 
     // Validate tx_hash format if provided
     if (txHash && !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
@@ -42,7 +45,7 @@ router.post('/attest', async (req, res) => {
       qcPacketId: parseInt(packetId),
       walletAddress,
       chainId: parseInt(chainId),
-      signature,
+      signature: finalSignature,
       message,
       readingHash: readingHash || packet.reading_hash,
       txHash: txHash || null,

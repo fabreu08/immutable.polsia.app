@@ -294,6 +294,7 @@ const IQC_WALLET = (() => {
         chainId: committed.chainId,
         txHash: committed.txHash,
         message: committed.message,
+        signature: committed.txHash, // For Registry commit flow, the tx itself serves as the attestation proof
       }),
     });
 
