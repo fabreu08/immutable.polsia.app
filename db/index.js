@@ -88,6 +88,13 @@ async function ensureTables() {
       ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true
     `);
 
+    // Ensure attestations has notes column (used by createAttestation in QC packet creation / HPLC ingest)
+    // Note: older schema used "comment" instead of "notes"
+    await client.query(`
+      ALTER TABLE attestations 
+      ADD COLUMN IF NOT EXISTS notes TEXT
+    `);
+
     // Schema drift fixes for readings table (needed for on-chain + hash chain)
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS signing_key_fingerprint TEXT`);
     await client.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS previous_hash TEXT`);

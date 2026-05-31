@@ -118,8 +118,14 @@ async function runCoreMigrations(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS attestations (
       id SERIAL PRIMARY KEY, qc_packet_id INTEGER REFERENCES qc_packets(id),
-      reviewer_id INTEGER REFERENCES reviewers(id), action VARCHAR(20), comment TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+      reviewer_id INTEGER REFERENCES reviewers(id), action VARCHAR(20), notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+
+  // Ensure notes column exists on attestations (schema drift safety; older versions used "comment")
+  await client.query(`
+    ALTER TABLE attestations 
+    ADD COLUMN IF NOT EXISTS notes TEXT
   `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS ledger_entries (
