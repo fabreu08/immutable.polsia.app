@@ -74,8 +74,8 @@
           <div class="packet-header">
             <div>
               <span class="badge badge-<%= p.status %>"><%= p.status %></span>
-              <span class="badge <%= p.sensor_type === 'ph' ? 'badge-ph' : 'badge-temp' %>" style="margin-left:6px;">
-                <%= p.sensor_type === 'ph' ? 'pH' : 'Temperature' %>
+              <span class="badge <%= p.sensor_type === 'hplc' ? 'badge-ph' : (p.sensor_type === 'ph' ? 'badge-ph' : 'badge-temp') %>" style="margin-left:6px;">
+                <%= p.sensor_type === 'hplc' ? 'HPLC' : (p.sensor_type === 'ph' ? 'pH' : 'Temperature') %>
               </span>
             </div>
             <div class="packet-value"><%= p.value %> <span style="font-size:1rem;color:var(--fg-muted);"><%= p.unit %></span></div>

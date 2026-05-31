@@ -170,7 +170,12 @@ app.get('/ledger', async (req, res) => {
 app.get('/review', async (req, res) => {
   try {
     const { pool } = require('./db/index');
+    const dbReviewers = require('./db/reviewers');
+
     const selectedStatus = req.query.status || null;
+
+    // Always load active reviewers for the attestation form dropdown
+    const reviewers = await dbReviewers.getAllReviewers(true);
 
     let where = '';
     const params = [];
@@ -188,7 +193,8 @@ app.get('/review', async (req, res) => {
           rd.unit,
           rd.sensor_type,
           i.name as iname,
-          r.name as reviewer_name
+          i.serial_number as iserial,
+          r.name as assigned_name
         FROM qc_packets qp
         LEFT JOIN readings rd ON qp.reading_id = rd.id
         LEFT JOIN instruments i ON rd.instrument_id = i.id
@@ -206,7 +212,8 @@ app.get('/review', async (req, res) => {
             rd.unit,
             rd.sensor_type,
             i.name as iname,
-            NULL as reviewer_name
+            i.serial_number as iserial,
+            NULL as assigned_name
           FROM qc_packets qp
           LEFT JOIN readings rd ON qp.reading_id = rd.id
           LEFT JOIN instruments i ON rd.instrument_id = i.id
@@ -228,6 +235,7 @@ app.get('/review', async (req, res) => {
     res.render('review', { 
       packets: packets.rows, 
       qcStats: qcStats.rows,
+      reviewers,
       selectedStatus,
       currentPath: '/review' 
     });
