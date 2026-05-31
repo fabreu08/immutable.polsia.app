@@ -64,6 +64,12 @@ async function ensureTables() {
       ADD COLUMN IF NOT EXISTS assigned_reviewer_id INTEGER REFERENCES reviewers(id)
     `);
 
+    // Ensure qc_packets has priority column (used by HPLC ingest + qc-packet service)
+    await client.query(`
+      ALTER TABLE qc_packets 
+      ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'
+    `);
+
     // Ensure instruments has key_fingerprint (required by seed + signing)
     await client.query(`
       ALTER TABLE instruments 

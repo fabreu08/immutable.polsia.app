@@ -81,7 +81,8 @@ async function runCoreMigrations(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS qc_packets (
       id SERIAL PRIMARY KEY, reading_id INTEGER REFERENCES readings(id), assigned_reviewer_id INTEGER REFERENCES reviewers(id),
-      status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
+      status VARCHAR(20) DEFAULT 'pending', priority VARCHAR(20) DEFAULT 'normal',
+      created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 
@@ -89,6 +90,12 @@ async function runCoreMigrations(client) {
   await client.query(`
     ALTER TABLE qc_packets 
     ADD COLUMN IF NOT EXISTS assigned_reviewer_id INTEGER REFERENCES reviewers(id)
+  `);
+
+  // Ensure priority column exists (used by createPacketForReading in HPLC flow)
+  await client.query(`
+    ALTER TABLE qc_packets 
+    ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'
   `);
   await client.query(`
     CREATE TABLE IF NOT EXISTS reviewers (
