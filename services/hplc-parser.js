@@ -47,10 +47,11 @@ function detectFormat(header, secondRow) {
     return 'waters';
   }
 
-  // Agilent OpenLAB: "Ret. Time" (abbreviated with period)
+  // Agilent OpenLAB / ChemStation: various "RetTime", "Ret. Time", "Ret Time" formats
   if (
-    /\bret\b.*\btime\b/i.test(h) ||
-    (h.includes('samplename') && h.includes('area'))
+    /ret.?time/i.test(h) ||                    // catches RetTime[min], Ret. Time, Ret Time, etc.
+    (h.includes('peak#') && h.includes('area')) ||
+    (h.includes('area') && /ret/i.test(h))     // fallback: any row with area + ret
   ) {
     return 'agilent';
   }
@@ -137,21 +138,24 @@ function parseAgilentOpenLAB(lines) {
   let headerIdx = -1;
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i].toLowerCase();
-    if (l.includes('ret. time') || l.includes('ret time')) {
+    // Support many real Agilent export variants: RetTime, Ret. Time, Ret Time, RetTime[min], etc.
+    const hasRetTime = l.includes('ret. time') || l.includes('ret time') || l.includes('rettime');
+    const hasArea = l.includes('area');
+    if (hasRetTime && hasArea) {
       headerIdx = i;
       break;
     }
   }
 
   if (headerIdx === -1) {
-    throw new Error('Could not find "Ret. Time" header in Agilent OpenLAB CSV');
+    throw new Error('Could not find Agilent peak table header (looking for RetTime + Area columns)');
   }
 
   const headers = splitCsvLine(lines[headerIdx]).map(h => h.trim().toLowerCase());
 
   const colMap = {
-    retentionTime: findCol(headers, ['ret. time', 'ret time']),
-    peakArea:     findCol(headers, ['area', 'area (counts)', 'area (p*a*s)']),
+    retentionTime: findCol(headers, ['ret. time', 'ret time', 'rettime', 'ret time [min]', 'ret. time [min]']),
+    peakArea:     findCol(headers, ['area', 'area (counts)', 'area (p*a*s)', 'area [mau']),
     peakName:     findCol(headers, ['samplename', 'name', 'compound', 'component']),
     resolution:   findCol(headers, ['resolution', 'res', 'rs']),
     tailingFactor:findCol(headers, ['tailing factor', 'tailing', 'tf']),
@@ -161,8 +165,8 @@ function parseAgilentOpenLAB(lines) {
 
   if (colMap.retentionTime === -1 || colMap.peakArea === -1) {
     throw new Error(
-      'Agilent OpenLAB CSV missing required columns. Found: ' + headers.join(', ') + '\n' +
-      'Expected: Ret. Time, Area'
+      'Agilent CSV missing required columns. Found: ' + headers.join(', ') + '\n' +
+      'Expected columns containing: RetTime / Ret. Time + Area'
     );
   }
 
